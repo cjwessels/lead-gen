@@ -3,12 +3,12 @@ import type { ReactNode } from 'react'
 import { useAuth } from '../../modules/auth/AuthProvider'
 
 const links = [
-  { to: '/', label: 'Dashboard' },
-  { to: '/search', label: 'Lead Search' },
-  { to: '/leads', label: 'Saved Leads' },
-  { to: '/pipeline', label: 'Pipeline' },
-  { to: '/outreach', label: 'Outreach' },
-  { to: '/billing', label: 'Billing' },
+  { to: '/app/dashboard', label: 'Dashboard' },
+  { to: '/app/search', label: 'Lead Search' },
+  { to: '/app/leads', label: 'Saved Leads' },
+  { to: '/app/pipeline', label: 'Pipeline' },
+  { to: '/app/outreach', label: 'Outreach' },
+  { to: '/app/billing', label: 'Billing' },
 ]
 
 export function AppShell({ children }: { children: ReactNode }) {
