@@ -1,22 +1,34 @@
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
 
 serve(async (req) => {
   try {
-    if (req.method !== 'POST') {
-      return json({ error: 'Method not allowed' }, 405)
+    if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
+
+    const supabase = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_ANON_KEY') ?? '',
+      { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } },
+    )
+
+    const { data: auth } = await supabase.auth.getUser()
+    if (!auth.user) return json({ error: 'Unauthorized' }, 401)
+
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('monthly_searches_used, monthly_search_limit')
+      .eq('id', auth.user.id)
+      .single()
+
+    if (profile && profile.monthly_searches_used >= profile.monthly_search_limit) {
+      return json({ error: 'Monthly search limit reached' }, 403)
     }
 
     const { query } = await req.json()
-
-    if (!query || typeof query !== 'string') {
-      return json({ error: 'Invalid query' }, 400)
-    }
+    if (!query || typeof query !== 'string') return json({ error: 'Invalid query' }, 400)
 
     const googleApiKey = Deno.env.get('GOOGLE_API_KEY')
-
-    if (!googleApiKey) {
-      return json({ error: 'GOOGLE_API_KEY is not set' }, 500)
-    }
+    if (!googleApiKey) return json({ error: 'GOOGLE_API_KEY is not set' }, 500)
 
     const upstream = await fetch('https://places.googleapis.com/v1/places:searchText', {
       method: 'POST',
@@ -26,13 +38,11 @@ serve(async (req) => {
         'X-Goog-FieldMask':
           'places.id,places.displayName,places.formattedAddress,places.websiteUri,places.nationalPhoneNumber,places.rating,places.userRatingCount,places.primaryTypeDisplayName',
       },
-      body: JSON.stringify({
-        textQuery: query,
-        pageSize: 10,
-      }),
+      body: JSON.stringify({ textQuery: query, pageSize: 10 }),
     })
 
     const data = await upstream.json()
+    await supabase.rpc('increment_monthly_searches', { p_user_id: auth.user.id })
     return json(data, upstream.status)
   } catch (error) {
     return json({ error: error instanceof Error ? error.message : 'Unexpected error' }, 500)

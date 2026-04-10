@@ -1,16 +1,9 @@
 export type PlanCode = 'free' | 'starter' | 'pro'
-
-export type LeadStatus =
-  | 'new'
-  | 'qualified'
-  | 'contacted'
-  | 'follow-up'
-  | 'proposal-sent'
-  | 'won'
-  | 'lost'
+export type LeadStatus = 'new' | 'qualified' | 'contacted' | 'follow-up' | 'proposal-sent' | 'won' | 'lost'
 
 export interface Lead {
   id: string
+  user_id?: string
   name: string
   category: string
   city: string
@@ -21,6 +14,7 @@ export interface Lead {
   score: number
   status: LeadStatus
   painPoints: string[]
+  created_at?: string
 }
 
 export interface SearchResponse {
@@ -34,4 +28,9 @@ export interface SearchResponse {
     userRatingCount?: number
     primaryTypeDisplayName?: { text?: string }
   }>
+}
+
+export interface CheckoutPayload {
+  paymentUrl: string
+  formFields: Record<string, string>
 }
