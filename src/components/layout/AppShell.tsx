@@ -1,6 +1,9 @@
 import { NavLink } from 'react-router-dom'
 import type { ReactNode } from 'react'
 import { useAuth } from '../../modules/auth/AuthProvider'
+import { useEffect, useState } from 'react'
+import { fetchProfile } from '../../services/profile.service'
+import type { Profile } from '../../types'
 
 const links = [
   { to: '/app/dashboard', label: 'Dashboard' },
@@ -13,6 +16,11 @@ const links = [
 
 export function AppShell({ children }: { children: ReactNode }) {
   const { user, signOut } = useAuth()
+  const [profile, setProfile] = useState<Profile | null>(null)
+
+  useEffect(() => {
+    void fetchProfile().then(setProfile).catch(() => setProfile(null))
+  }, [])
 
   return (
     <div className="min-h-screen">
@@ -40,6 +48,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           </nav>
 
           <div className="flex items-center gap-3">
+            {profile ? <span className="badge uppercase">{profile.plan}</span> : null}
             <div className="text-sm text-slate-400">{user?.email}</div>
             <button
               onClick={() => void signOut()}

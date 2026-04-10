@@ -34,3 +34,12 @@ export interface CheckoutPayload {
   paymentUrl: string
   formFields: Record<string, string>
 }
+
+export interface Profile {
+  id: string
+  email: string
+  full_name?: string
+  plan: PlanCode
+  monthly_searches_used: number
+  monthly_search_limit: number
+}
