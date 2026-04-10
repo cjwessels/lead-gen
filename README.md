@@ -1,73 +1,42 @@
-# React + TypeScript + Vite
+# SaaSiFy Leads Starter
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+This starter converts the bare Vite repository into a SaaS-ready lead-generation foundation for South African SMEs.
 
-Currently, two official plugins are available:
+## Included
+- Vite + React + TypeScript
+- Tailwind CSS v4
+- Supabase client setup
+- Google Places Edge Function starter
+- PayFast ITN function starter
+- Lead scoring utility
+- Pipeline board starter
+- Outreach generator starter
+- Billing page starter
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Run locally
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Supabase
+1. Create a Supabase project.
+2. Apply `supabase/migrations/0001_init.sql`.
+3. Set Edge Function secrets:
+   - `GOOGLE_API_KEY`
+   - `PAYFAST_MERCHANT_ID`
+   - `PAYFAST_MERCHANT_KEY`
+   - `PAYFAST_PASSPHRASE`
+4. Deploy functions:
+```bash
+supabase functions deploy places-search
+supabase functions deploy payfast-itn
 ```
+
+## Frontend env
+Copy `.env.example` to `.env` and fill in the values.
+
+## Important notes
+- The billing flow is intentionally scaffolded, not production-complete. PayFast signature validation and remote validation still need to be completed before launch.
+- Search falls back to mock data when Supabase env vars are not present, so the UI can be tested before backend setup.
+- Auth screens and usage metering should be added next for full public SaaS rollout.

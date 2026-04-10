@@ -1,0 +1,37 @@
+export type PlanCode = 'free' | 'starter' | 'pro'
+
+export type LeadStatus =
+  | 'new'
+  | 'qualified'
+  | 'contacted'
+  | 'follow-up'
+  | 'proposal-sent'
+  | 'won'
+  | 'lost'
+
+export interface Lead {
+  id: string
+  name: string
+  category: string
+  city: string
+  phone?: string
+  website?: string
+  rating?: number
+  reviewCount?: number
+  score: number
+  status: LeadStatus
+  painPoints: string[]
+}
+
+export interface SearchResponse {
+  places: Array<{
+    id?: string
+    displayName?: { text?: string }
+    formattedAddress?: string
+    websiteUri?: string
+    nationalPhoneNumber?: string
+    rating?: number
+    userRatingCount?: number
+    primaryTypeDisplayName?: { text?: string }
+  }>
+}
