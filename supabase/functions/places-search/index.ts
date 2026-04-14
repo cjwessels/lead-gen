@@ -34,7 +34,7 @@ serve(async (req) => {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Goog-Api-Key': googleApiKey,
+        'X-Goog-Api-Key': Deno.env.get("VITE_PLACES_API_KEY")!,
         'X-Goog-FieldMask':
           'places.id,places.displayName,places.formattedAddress,places.websiteUri,places.nationalPhoneNumber,places.rating,places.userRatingCount,places.primaryTypeDisplayName',
       },
