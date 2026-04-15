@@ -97,13 +97,15 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         textQuery: query,
-        pageSize: 10,
+        pageSize: 20,
       }),
     })
 
     const data = await upstream.json()
 
-    await supabase.rpc('increment_monthly_searches', { p_user_id: auth.user.id })
+    await supabase.rpc('increment_monthly_searches', {
+      p_user_id: auth.user.id,
+    })
 
     return new Response(JSON.stringify(data), {
       status: upstream.status,
