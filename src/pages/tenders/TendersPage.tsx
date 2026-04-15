@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchProfile } from '../../services/profile.service'
 import { fetchSavedTenders, saveTender, searchTenders, updateTenderStatus } from '../../services/tenders.service'
+import { AdvancedSearchBuilder } from '../../components/search/AdvancedSearchBuilder'
 import type { Profile, Tender, TenderSearchResult, TenderStatus, TenderSourceType } from '../../types'
 
 const statuses: TenderStatus[] = ['identified', 'reviewing', 'qualifying', 'bid-prep', 'submitted', 'won', 'lost']
@@ -15,6 +16,15 @@ const smartSearches = [
 const ALL_PROVINCES = 'All provinces'
 const ALL_SOURCES = 'All sources'
 const PAGE_SIZE = 20
+const TENDER_FIELDS = [
+  { key: 'province', label: 'Province', placeholder: 'Western Cape' },
+  { key: 'city', label: 'City / place', placeholder: 'Cape Town' },
+  { key: 'keyword', label: 'Keyword', placeholder: 'managed services' },
+  { key: 'service', label: 'Service / solution', placeholder: 'network management' },
+  { key: 'category', label: 'Category', placeholder: 'IT support' },
+  { key: 'source', label: 'Source', placeholder: 'government / platform / private_sector' },
+  { key: 'custom', label: 'Custom focus', placeholder: 'SLA support contract' },
+] as const
 
 function formatDate(value?: string) {
   if (!value) return 'Not provided'
@@ -157,7 +167,7 @@ export function TendersPage() {
             <div className="badge mb-3">Pro feature · Phase 3</div>
             <h1 className="text-2xl font-semibold text-white">Tender search and tender pipeline</h1>
             <p className="mt-2 max-w-3xl text-slate-300">
-              Tender search now combines official public procurement data with platform/private-sector signals where available, then normalizes them into one searchable pipeline. You can use structured queries like province:"Western Cape" keyword:"managed services" source:government.
+              Tender search now combines official public procurement data with platform/private-sector signals where available, then normalizes them into one searchable pipeline.
             </p>
           </div>
 
@@ -184,6 +194,14 @@ export function TendersPage() {
             {loading ? 'Searching...' : 'Search tenders'}
           </button>
         </div>
+
+        <AdvancedSearchBuilder
+          query={query}
+          onApply={setQuery}
+          fields={TENDER_FIELDS as any}
+          title="Advanced search helper"
+          description="Build structured tender queries visually. Use province, city, source, keyword, and custom focus fields without remembering the syntax."
+        />
 
         <div className="mt-4 flex flex-wrap gap-2">
           {smartSearches.map((value) => (

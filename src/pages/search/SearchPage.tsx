@@ -2,10 +2,18 @@ import { useEffect, useMemo, useState } from 'react'
 import { searchPlaces } from '../../services/search.service'
 import { saveLead } from '../../services/leads.service'
 import { getLeadHeatLabel, getLeadScoreBadgeClass } from '../../lib/leadScoring'
+import { AdvancedSearchBuilder } from '../../components/search/AdvancedSearchBuilder'
 import type { Lead } from '../../types'
 
 const ITEMS_PER_PAGE = 8
 const ALL_PAIN_POINTS = 'All'
+const LEAD_FIELDS = [
+  { key: 'city', label: 'City', placeholder: 'Cape Town' },
+  { key: 'keyword', label: 'Keyword', placeholder: 'panel beaters' },
+  { key: 'service', label: 'Service / niche', placeholder: 'VW Polo parts' },
+  { key: 'category', label: 'Category', placeholder: 'automotive' },
+  { key: 'custom', label: 'Custom focus', placeholder: 'fleet repairs' },
+] as const
 
 export function SearchPage() {
   const [query, setQuery] = useState('panel beaters Cape Town')
@@ -119,6 +127,14 @@ export function SearchPage() {
             {loading ? 'Searching...' : 'Search'}
           </button>
         </div>
+
+        <AdvancedSearchBuilder
+          query={query}
+          onApply={setQuery}
+          fields={LEAD_FIELDS as any}
+          title="Advanced search helper"
+          description="Build structured lead queries visually. Multi-word values like Cape Town are automatically quoted for you."
+        />
 
         <div className="mt-6 grid gap-4 xl:grid-cols-[1.15fr_1fr]">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
