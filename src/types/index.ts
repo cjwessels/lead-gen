@@ -1,5 +1,6 @@
 export type PlanCode = 'free' | 'starter' | 'pro'
 export type LeadStatus = 'new' | 'qualified' | 'contacted' | 'follow-up' | 'proposal-sent' | 'won' | 'lost'
+export type LeadHeat = 'hot' | 'warm' | 'cool' | 'low'
 
 export interface Lead {
   id: string
@@ -42,4 +43,12 @@ export interface Profile {
   plan: PlanCode
   monthly_searches_used: number
   monthly_search_limit: number
+}
+
+export interface OutreachPack {
+  emailSubject: string
+  emailBody: string
+  whatsappBody: string
+  callOpener: string
+  source: 'local' | 'ai'
 }
