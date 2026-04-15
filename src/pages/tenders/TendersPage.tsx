@@ -13,6 +13,7 @@ const smartSearches = [
   'cybersecurity',
 ]
 const ALL_PROVINCES = 'All provinces'
+const PAGE_SIZE = 20
 
 function formatDate(value?: string) {
   if (!value) return 'Not provided'
@@ -47,6 +48,9 @@ export function TendersPage() {
   const [message, setMessage] = useState('')
   const [selectedProvince, setSelectedProvince] = useState(ALL_PROVINCES)
   const [openOnly, setOpenOnly] = useState(true)
+  const [page, setPage] = useState(1)
+  const [hasMore, setHasMore] = useState(false)
+  const [total, setTotal] = useState<number | undefined>(undefined)
 
   useEffect(() => {
     void fetchProfile().then(setProfile).catch(() => setProfile(null))
@@ -55,12 +59,16 @@ export function TendersPage() {
 
   const isPro = profile?.plan === 'pro'
 
-  async function onSearch() {
+  async function runSearch(targetPage: number) {
     if (!isPro) return
     setLoading(true)
     setMessage('')
     try {
-      setResults(await searchTenders(query))
+      const response = await searchTenders(query, targetPage, PAGE_SIZE)
+      setResults(response.results)
+      setPage(response.page)
+      setHasMore(response.hasMore)
+      setTotal(response.total)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Tender search failed')
     } finally {
@@ -119,12 +127,11 @@ export function TendersPage() {
       <div className="card p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="badge mb-3">Pro feature · Phase 1</div>
+            <div className="badge mb-3">Pro feature · Phase 2</div>
             <h1 className="text-2xl font-semibold text-white">Tender search and tender pipeline</h1>
             <p className="mt-2 max-w-3xl text-slate-300">
-              Search active South African tender opportunities with smarter matching for managed services, office automation,
-              network management, IT support, and related service terms. This phase improves date parsing, province extraction,
-              and countrywide visibility.
+              Tender search now uses structured procurement data instead of HTML page scraping. That improves relevance,
+              lets the search respond properly to your keywords, and adds more reliable pagination.
             </p>
           </div>
 
@@ -144,7 +151,7 @@ export function TendersPage() {
             disabled={!isPro}
           />
           <button
-            onClick={onSearch}
+            onClick={() => void runSearch(1)}
             disabled={!isPro}
             className="rounded-2xl bg-sky-400 px-5 py-3 font-medium text-slate-950 hover:bg-sky-300 disabled:cursor-not-allowed disabled:opacity-40"
           >
@@ -198,6 +205,14 @@ export function TendersPage() {
           </div>
         </div>
 
+        <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-400">
+          <span>Structured data source active</span>
+          <span>•</span>
+          <span>Page {page}</span>
+          <span>•</span>
+          <span>{typeof total === 'number' ? `${total} candidates scanned` : `${results.length} results returned`}</span>
+        </div>
+
         {message ? <div className="mt-4 text-sm text-slate-300">{message}</div> : null}
       </div>
 
@@ -205,7 +220,7 @@ export function TendersPage() {
         <section className="space-y-4">
           <div className="flex items-center justify-between gap-4">
             <h2 className="text-xl font-semibold text-white">Open tender results</h2>
-            <div className="text-sm text-slate-400">{filteredResults.length} matched</div>
+            <div className="text-sm text-slate-400">{filteredResults.length} matched on this page</div>
           </div>
 
           {filteredResults.length ? (
@@ -232,7 +247,7 @@ export function TendersPage() {
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                       <div className="text-xs uppercase tracking-wide text-slate-400">Location</div>
                       <div className="mt-2 text-sm text-slate-200">{tender.is_national ? 'National / Countrywide' : tender.province || 'Province not extracted'}</div>
-                      <div className="mt-1 text-xs text-slate-400">{tender.location_text || 'Location details not extracted from the listing text.'}</div>
+                      <div className="mt-1 text-xs text-slate-400">{tender.location_text || 'Location details not extracted from the source data.'}</div>
                     </div>
 
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -244,7 +259,7 @@ export function TendersPage() {
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                       <div className="text-xs uppercase tracking-wide text-slate-400">Qualification / notes</div>
                       <div className="mt-2 text-sm text-slate-200">
-                        {tender.qualification_notes || 'Qualification details not extracted from the source text yet.'}
+                        {tender.qualification_notes || 'Qualification details are not explicit in the current structured record.'}
                       </div>
                     </div>
                   </div>
@@ -288,6 +303,30 @@ export function TendersPage() {
                 : 'Upgrade to Pro to unlock active tender search and tender pipeline management.'}
             </div>
           )}
+
+          {isPro && results.length ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
+              <div className="text-sm text-slate-400">Structured API page {page}</div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={page === 1 || loading}
+                  onClick={() => void runSearch(page - 1)}
+                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Previous
+                </button>
+                <button
+                  type="button"
+                  disabled={!hasMore || loading}
+                  onClick={() => void runSearch(page + 1)}
+                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+          ) : null}
         </section>
 
         <section className="space-y-4">

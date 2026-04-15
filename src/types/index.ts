@@ -71,6 +71,15 @@ export interface TenderSearchResult {
   focus_tags: string[]
 }
 
+export interface TenderSearchResponse {
+  results: TenderSearchResult[]
+  page: number
+  pageSize: number
+  hasMore: boolean
+  total?: number
+  source: 'ocds_api'
+}
+
 export interface Tender extends TenderSearchResult {
   id: string
   user_id?: string

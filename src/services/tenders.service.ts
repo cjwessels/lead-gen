@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase'
-import type { Tender, TenderSearchResult, TenderStatus } from '../types'
+import type { Tender, TenderSearchResponse, TenderSearchResult, TenderStatus } from '../types'
 
 function mapRowToTender(row: any): Tender {
   return {
@@ -24,7 +24,7 @@ function mapRowToTender(row: any): Tender {
   }
 }
 
-export async function searchTenders(query: string): Promise<TenderSearchResult[]> {
+export async function searchTenders(query: string, page = 1, pageSize = 20): Promise<TenderSearchResponse> {
   if (!supabase) throw new Error('Supabase is not configured')
 
   const {
@@ -36,14 +36,22 @@ export async function searchTenders(query: string): Promise<TenderSearchResult[]
   if (!session?.access_token) throw new Error('You must be signed in to search tenders')
 
   const { data, error } = await supabase.functions.invoke('tender-search', {
-    body: { query },
+    body: { query, page, pageSize },
     headers: {
       Authorization: `Bearer ${session.access_token}`,
     },
   })
 
   if (error) throw new Error(error.message || 'Tender search failed')
-  return ((data?.results as TenderSearchResult[]) || []).sort((a, b) => b.score - a.score)
+
+  return {
+    results: ((data?.results as TenderSearchResult[]) || []).sort((a, b) => b.score - a.score),
+    page: Number(data?.page || page),
+    pageSize: Number(data?.pageSize || pageSize),
+    hasMore: Boolean(data?.hasMore),
+    total: data?.total ? Number(data.total) : undefined,
+    source: 'ocds_api',
+  }
 }
 
 export async function fetchSavedTenders(): Promise<Tender[]> {
