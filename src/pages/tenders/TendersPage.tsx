@@ -12,12 +12,30 @@ const smartSearches = [
   'document management',
   'cybersecurity',
 ]
+const ALL_PROVINCES = 'All provinces'
 
 function formatDate(value?: string) {
   if (!value) return 'Not provided'
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleDateString()
+}
+
+function daysUntil(value?: string) {
+  if (!value) return null
+  const close = new Date(value)
+  if (Number.isNaN(close.getTime())) return null
+  const today = new Date()
+  close.setHours(0, 0, 0, 0)
+  today.setHours(0, 0, 0, 0)
+  return Math.round((close.getTime() - today.getTime()) / 86400000)
+}
+
+function getClosingBadge(days: number | null) {
+  if (days === null) return { label: 'Date unclear', className: 'border-slate-400/20 bg-white/5 text-slate-200' }
+  if (days < 0) return { label: 'May be closed', className: 'border-rose-400/20 bg-rose-400/10 text-rose-100' }
+  if (days <= 7) return { label: 'Closing soon', className: 'border-amber-400/20 bg-amber-400/10 text-amber-100' }
+  return { label: 'Open window', className: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100' }
 }
 
 export function TendersPage() {
@@ -27,6 +45,8 @@ export function TendersPage() {
   const [savedTenders, setSavedTenders] = useState<Tender[]>([])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
+  const [selectedProvince, setSelectedProvince] = useState(ALL_PROVINCES)
+  const [openOnly, setOpenOnly] = useState(true)
 
   useEffect(() => {
     void fetchProfile().then(setProfile).catch(() => setProfile(null))
@@ -70,6 +90,25 @@ export function TendersPage() {
     }
   }
 
+  const provinceOptions = useMemo(() => {
+    const set = new Set<string>()
+    results.forEach((result) => {
+      if (result.province) set.add(result.province)
+      if (result.is_national) set.add('National')
+    })
+    return [ALL_PROVINCES, ...Array.from(set)]
+  }, [results])
+
+  const filteredResults = useMemo(() => {
+    return results.filter((result) => {
+      const closeDays = daysUntil(result.end_date)
+      if (openOnly && closeDays !== null && closeDays < 0) return false
+      if (selectedProvince === ALL_PROVINCES) return true
+      if (selectedProvince === 'National') return !!result.is_national
+      return result.province === selectedProvince
+    })
+  }, [openOnly, results, selectedProvince])
+
   const grouped = useMemo(
     () => Object.fromEntries(statuses.map((status) => [status, savedTenders.filter((tender) => tender.status === status)])),
     [savedTenders],
@@ -80,11 +119,12 @@ export function TendersPage() {
       <div className="card p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="badge mb-3">Pro feature</div>
+            <div className="badge mb-3">Pro feature · Phase 1</div>
             <h1 className="text-2xl font-semibold text-white">Tender search and tender pipeline</h1>
             <p className="mt-2 max-w-3xl text-slate-300">
-              Search active South African tender opportunities with smart matching for focus areas like managed services,
-              office automation, network management, IT support, and related service keywords.
+              Search active South African tender opportunities with smarter matching for managed services, office automation,
+              network management, IT support, and related service terms. This phase improves date parsing, province extraction,
+              and countrywide visibility.
             </p>
           </div>
 
@@ -126,71 +166,121 @@ export function TendersPage() {
           ))}
         </div>
 
+        <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1fr]">
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="text-sm font-medium text-white">Province filter</div>
+            <div className="mt-1 text-xs text-slate-400">Use extracted province information to focus on countrywide or specific regional opportunities.</div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {provinceOptions.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setSelectedProvince(option)}
+                  className={`rounded-full border px-3 py-2 text-xs transition ${
+                    selectedProvince === option
+                      ? 'border-sky-400/40 bg-sky-400/15 text-sky-100'
+                      : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="text-sm font-medium text-white">Tender window focus</div>
+            <div className="mt-1 text-xs text-slate-400">Hide opportunities that appear to be closed and surface tenders that are still worth reviewing.</div>
+            <label className="mt-4 flex items-center gap-3 text-sm text-slate-200">
+              <input type="checkbox" checked={openOnly} onChange={(event) => setOpenOnly(event.target.checked)} />
+              Show open or undated tenders only
+            </label>
+          </div>
+        </div>
+
         {message ? <div className="mt-4 text-sm text-slate-300">{message}</div> : null}
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <section className="space-y-4">
-          <h2 className="text-xl font-semibold text-white">Open tender results</h2>
-          {results.length ? (
-            results.map((tender) => (
-              <article key={tender.source_id} className="card p-6">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <h3 className="text-lg font-semibold text-white">{tender.title}</h3>
-                    <div className="mt-1 text-sm text-slate-400">{tender.publisher || 'Official source'}</div>
-                  </div>
-                  <div className="badge">Tender score {tender.score}</div>
-                </div>
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="text-xl font-semibold text-white">Open tender results</h2>
+            <div className="text-sm text-slate-400">{filteredResults.length} matched</div>
+          </div>
 
-                <p className="mt-4 text-sm leading-6 text-slate-300">{tender.summary}</p>
+          {filteredResults.length ? (
+            filteredResults.map((tender) => {
+              const closeDays = daysUntil(tender.end_date)
+              const closeBadge = getClosingBadge(closeDays)
 
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="text-xs uppercase tracking-wide text-slate-400">Dates</div>
-                    <div className="mt-2 text-sm text-slate-200">Start: {formatDate(tender.start_date)}</div>
-                    <div className="mt-1 text-sm text-slate-200">Close: {formatDate(tender.end_date)}</div>
-                  </div>
-
-                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <div className="text-xs uppercase tracking-wide text-slate-400">Qualification / notes</div>
-                    <div className="mt-2 text-sm text-slate-200">
-                      {tender.qualification_notes || 'Qualification details not extracted from the source text yet.'}
+              return (
+                <article key={tender.source_id} className="card p-6">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white">{tender.title}</h3>
+                      <div className="mt-1 text-sm text-slate-400">{tender.publisher || 'Official source'}</div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <div className="badge">Tender score {tender.score}</div>
+                      <div className={`badge border ${closeBadge.className}`}>{closeBadge.label}</div>
                     </div>
                   </div>
-                </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {tender.focus_tags.map((tag) => (
-                    <span key={tag} className="badge border border-sky-400/25 bg-sky-400/10 text-sky-100">
-                      {tag}
-                    </span>
-                  ))}
-                </div>
+                  <p className="mt-4 text-sm leading-6 text-slate-300">{tender.summary}</p>
 
-                <div className="mt-5 flex flex-wrap gap-3">
-                  <button
-                    type="button"
-                    onClick={() => void onSave(tender)}
-                    disabled={!isPro}
-                    className="rounded-2xl bg-white/10 px-4 py-3 text-sm text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    Save to tender pipeline
-                  </button>
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <div className="text-xs uppercase tracking-wide text-slate-400">Location</div>
+                      <div className="mt-2 text-sm text-slate-200">{tender.is_national ? 'National / Countrywide' : tender.province || 'Province not extracted'}</div>
+                      <div className="mt-1 text-xs text-slate-400">{tender.location_text || 'Location details not extracted from the listing text.'}</div>
+                    </div>
 
-                  {tender.source_url ? (
-                    <a
-                      href={tender.source_url}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10"
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <div className="text-xs uppercase tracking-wide text-slate-400">Dates</div>
+                      <div className="mt-2 text-sm text-slate-200">Start: {formatDate(tender.start_date)}</div>
+                      <div className="mt-1 text-sm text-slate-200">Close: {formatDate(tender.end_date)}</div>
+                    </div>
+
+                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <div className="text-xs uppercase tracking-wide text-slate-400">Qualification / notes</div>
+                      <div className="mt-2 text-sm text-slate-200">
+                        {tender.qualification_notes || 'Qualification details not extracted from the source text yet.'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {tender.focus_tags.map((tag) => (
+                      <span key={tag} className="badge border border-sky-400/25 bg-sky-400/10 text-sky-100">
+                        {tag}
+                      </span>
+                    ))}
+                  </div>
+
+                  <div className="mt-5 flex flex-wrap gap-3">
+                    <button
+                      type="button"
+                      onClick={() => void onSave(tender)}
+                      disabled={!isPro}
+                      className="rounded-2xl bg-white/10 px-4 py-3 text-sm text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
                     >
-                      Open source
-                    </a>
-                  ) : null}
-                </div>
-              </article>
-            ))
+                      Save to tender pipeline
+                    </button>
+
+                    {tender.source_url ? (
+                      <a
+                        href={tender.source_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10"
+                      >
+                        Open source
+                      </a>
+                    ) : null}
+                  </div>
+                </article>
+              )
+            })
           ) : (
             <div className="card p-6 text-slate-400">
               {isPro
@@ -211,7 +301,10 @@ export function TendersPage() {
                     <article key={tender.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                       <div className="font-medium text-white">{tender.title}</div>
                       <div className="mt-1 text-xs text-slate-400">{tender.publisher}</div>
-                      <div className="mt-3 text-xs text-slate-300">Close: {formatDate(tender.end_date)}</div>
+                      <div className="mt-2 text-xs text-slate-300">
+                        {tender.is_national ? 'National / Countrywide' : tender.province || 'Province not extracted'}
+                      </div>
+                      <div className="mt-1 text-xs text-slate-300">Close: {formatDate(tender.end_date)}</div>
                       <select
                         className="input mt-3 w-full"
                         value={tender.status}

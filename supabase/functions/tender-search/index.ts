@@ -18,11 +18,26 @@ const SMART_KEYWORDS: Record<string, string[]> = {
   'document management': ['document management', 'records management', 'digitisation', 'scanning', 'ecm'],
 }
 
+const PROVINCES = [
+  'Eastern Cape',
+  'Free State',
+  'Gauteng',
+  'KwaZulu-Natal',
+  'Limpopo',
+  'Mpumalanga',
+  'Northern Cape',
+  'North West',
+  'Western Cape',
+]
+
 interface TenderResult {
   source_id: string
   title: string
   summary: string
   publisher: string
+  province?: string
+  location_text?: string
+  is_national?: boolean
   start_date?: string
   end_date?: string
   qualification_notes?: string
@@ -120,6 +135,7 @@ function extractTenderCandidates(html: string, keywords: string[]): TenderResult
     ...(html.match(/<tr[\s\S]*?<\/tr>/gi) || []),
     ...(html.match(/<article[\s\S]*?<\/article>/gi) || []),
     ...(html.match(/<div[\s\S]*?class=["'][^"']*(?:result|card|tender)[^"']*["'][\s\S]*?<\/div>/gi) || []),
+    ...(html.match(/<li[\s\S]*?<\/li>/gi) || []),
   ]
 
   const seen = new Set<string>()
@@ -127,7 +143,7 @@ function extractTenderCandidates(html: string, keywords: string[]): TenderResult
 
   for (const row of rows) {
     const text = clean(row)
-    if (!text || text.length < 60) continue
+    if (!text || text.length < 80) continue
 
     const score = scoreTenderText(text, keywords)
     if (score < 25) continue
@@ -136,19 +152,23 @@ function extractTenderCandidates(html: string, keywords: string[]): TenderResult
     if (!title || seen.has(title)) continue
     seen.add(title)
 
-    const dates = [...text.matchAll(/\b(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2})\b/g)].map((match) => toIsoDate(match[1]))
-    const summary = text.slice(0, 420)
+    const dates = detectDates(text)
+    const location = extractLocation(text)
+    const summary = text.slice(0, 520)
     const qualification_notes = inferQualification(text)
     const publisher = inferPublisher(text)
     const focus_tags = keywords.filter((keyword) => text.toLowerCase().includes(keyword)).slice(0, 6)
 
     results.push({
-      source_id: slugify(`${title}-${dates.join('-') || publisher}`),
+      source_id: slugify(`${title}-${dates.start_date || ''}-${dates.end_date || ''}-${publisher}`),
       title,
       summary,
       publisher,
-      start_date: dates[0],
-      end_date: dates[1],
+      province: location.province,
+      location_text: location.location_text,
+      is_national: location.is_national,
+      start_date: dates.start_date,
+      end_date: dates.end_date,
       qualification_notes,
       source_url: OFFICIAL_URL,
       score,
@@ -157,7 +177,7 @@ function extractTenderCandidates(html: string, keywords: string[]): TenderResult
     })
   }
 
-  return results.sort((a, b) => b.score - a.score).slice(0, 24)
+  return results.sort((a, b) => b.score - a.score).slice(0, 30)
 }
 
 function scoreTenderText(text: string, keywords: string[]) {
@@ -169,8 +189,10 @@ function scoreTenderText(text: string, keywords: string[]) {
   })
 
   if (/ict|information technology|network|office automation|managed services|support/i.test(text)) score += 16
-  if (/closing date|compulsory briefing|cidb|sbd|tax clearance|csd/i.test(text)) score += 10
-  if (/open|advertised|rfq|rfp|bid/i.test(text)) score += 6
+  if (/closing date|compulsory briefing|cidb|csd|tax clearance|briefing session|briefing meeting|sbd/i.test(text)) score += 10
+  if (/open|advertised|rfq|rfp|bid|quotation|tender/i.test(text)) score += 6
+  if (/national|countrywide|all provinces/i.test(normalized)) score += 6
+  if (PROVINCES.some((province) => normalized.includes(province.toLowerCase()))) score += 4
 
   return Math.min(score, 100)
 }
@@ -185,12 +207,42 @@ function inferTitle(text: string) {
   return line.slice(0, 180)
 }
 
+function detectDates(text: string) {
+  const iso = [...text.matchAll(/\b(\d{4}-\d{2}-\d{2})\b/g)].map((match) => match[1])
+  const slash = [...text.matchAll(/\b(\d{2}\/\d{2}\/\d{4})\b/g)].map((match) => toIsoDate(match[1]))
+  const written = [...text.matchAll(/\b(\d{1,2}\s+(?:Jan|January|Feb|February|Mar|March|Apr|April|May|Jun|June|Jul|July|Aug|August|Sep|September|Oct|October|Nov|November|Dec|December)\s+\d{4})\b/gi)].map((match) => fromWrittenDate(match[1]))
+  const dates = [...iso, ...slash, ...written].filter(Boolean) as string[]
+  dates.sort()
+  return {
+    start_date: dates[0],
+    end_date: dates[1] || dates[0],
+  }
+}
+
+function extractLocation(text: string) {
+  const normalized = text.toLowerCase()
+  const is_national = /national|countrywide|all provinces|nationwide/.test(normalized)
+
+  const province = PROVINCES.find((item) => normalized.includes(item.toLowerCase()))
+  const cityMatch = text.match(/(?:in|at|for)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){0,2})\s+(?:Municipality|Province|District|Metro|Region)?/)
+  const location_text = is_national
+    ? 'National / Countrywide'
+    : province
+      ? province
+      : cityMatch?.[1]
+
+  return {
+    province,
+    location_text,
+    is_national,
+  }
+}
+
 function inferQualification(text: string) {
   const matches = [
-    ...extractPhrase(text, /(?:qualification|requirements?|eligibility|mandatory|compulsory)[\s\S]{0,220}/i),
-    ...extractPhrase(text, /(?:cidb|csd|tax clearance|briefing session|briefing meeting|sbd forms?)[\s\S]{0,220}/i),
+    ...extractPhrase(text, /(?:qualification|requirements?|eligibility|mandatory|compulsory)[\s\S]{0,240}/i),
+    ...extractPhrase(text, /(?:cidb|csd|tax clearance|briefing session|briefing meeting|sbd forms?|b-bbee|company registration)[\s\S]{0,240}/i),
   ]
-
   return matches[0] || ''
 }
 
@@ -201,7 +253,7 @@ function inferPublisher(text: string) {
 
 function extractPhrase(text: string, pattern: RegExp) {
   const match = text.match(pattern)
-  return match ? [match[0].replace(/\s+/g, ' ').trim().slice(0, 220)] : []
+  return match ? [match[0].replace(/\s+/g, ' ').trim().slice(0, 240)] : []
 }
 
 function clean(html: string) {
@@ -224,10 +276,15 @@ function slugify(value: string) {
 }
 
 function toIsoDate(value: string) {
-  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value
   const [day, month, year] = value.split('/')
   if (!day || !month || !year) return undefined
   return `${year}-${month}-${day}`
+}
+
+function fromWrittenDate(value: string) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return undefined
+  return date.toISOString().slice(0, 10)
 }
 
 function json(payload: unknown, status = 200) {

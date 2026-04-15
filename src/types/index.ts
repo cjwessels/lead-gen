@@ -59,6 +59,9 @@ export interface TenderSearchResult {
   title: string
   summary: string
   publisher: string
+  province?: string
+  location_text?: string
+  is_national?: boolean
   start_date?: string
   end_date?: string
   qualification_notes?: string
