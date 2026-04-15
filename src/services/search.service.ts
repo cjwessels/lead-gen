@@ -1,3 +1,4 @@
+import { supabase } from '../lib/supabase'
 import { scoreLead } from '../lib/leadScoring'
 import type { Lead, SearchResponse } from '../types'
 
@@ -17,7 +18,9 @@ function toLeadModel(item: SearchResponse['places'][number], cityHint: string): 
     reviewCount,
     score: 0,
     status: 'new',
-    painPoints: website ? ['Needs stronger lead capture', 'Could use quote automation'] : ['No website', 'Likely manual admin'],
+    painPoints: website
+      ? ['Needs stronger lead capture', 'Could use quote automation']
+      : ['No website', 'Likely manual admin'],
   }
 
   lead.score = scoreLead(lead)
@@ -25,22 +28,39 @@ function toLeadModel(item: SearchResponse['places'][number], cityHint: string): 
 }
 
 export async function searchPlaces(query: string): Promise<Lead[]> {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-  if (!supabaseUrl || !supabaseAnonKey) throw new Error('Supabase env vars are required for live search')
+  if (!supabase) {
+    throw new Error('Supabase is not configured')
+  }
 
-  const response = await fetch(`${supabaseUrl}/functions/v1/places-search`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${supabaseAnonKey}`,
-    },
-    body: JSON.stringify({ query }),
-  })
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession()
+  
 
-  const payload = await response.json()
-  if (!response.ok) throw new Error(payload.error || 'Search failed')
+  if (sessionError) {
+    throw sessionError
+  }
 
+  if (!session?.access_token) {
+    throw new Error('You must be signed in to search')
+  }
+
+  const { data, error } = await supabase.functions.invoke('places-search', {
+  body: { query },
+  headers: {
+    Authorization: `Bearer ${session.access_token}`,
+  },
+})
+
+  if (error) {
+    throw new Error(error.message || 'Search failed')
+  }
+
+  
+
+  const payload = data as SearchResponse
   const cityHint = query.split(' ').slice(-1)[0] || 'South Africa'
-  return (payload.places || []).map((item: SearchResponse['places'][number]) => toLeadModel(item, cityHint))
+
+  return (payload.places || []).map((item) => toLeadModel(item, cityHint))
 }

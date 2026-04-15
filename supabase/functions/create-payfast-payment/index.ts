@@ -7,6 +7,10 @@ const PLAN_CONFIG = {
 } as const
 
 serve(async (req) => {
+  if (req.method === 'OPTIONS') {
+    return json({ ok: true }, 200)
+  }
+
   try {
     if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
 
@@ -32,8 +36,8 @@ serve(async (req) => {
     const formFields: Record<string, string> = {
       merchant_id: merchantId,
       merchant_key: merchantKey,
-      return_url: `${siteUrl}/billing?status=success`,
-      cancel_url: `${siteUrl}/billing?status=cancelled`,
+      return_url: `${siteUrl}/app/billing?status=success`,
+      cancel_url: `${siteUrl}/app/billing?status=cancelled`,
       notify_url: `${Deno.env.get('SUPABASE_URL')}/functions/v1/payfast-itn`,
       name_first: auth.user.email?.split('@')[0] || 'Customer',
       email_address: auth.user.email || '',
@@ -77,6 +81,11 @@ async function makeSignature(fields: Record<string, string>, passphrase: string)
 function json(payload: unknown, status = 200) {
   return new Response(JSON.stringify(payload), {
     status,
-    headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    },
   })
 }
