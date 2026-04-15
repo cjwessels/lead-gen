@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchProfile } from '../../services/profile.service'
 import { fetchSavedTenders, saveTender, searchTenders, updateTenderStatus } from '../../services/tenders.service'
-import type { Profile, Tender, TenderSearchResult, TenderStatus } from '../../types'
+import type { Profile, Tender, TenderSearchResult, TenderStatus, TenderSourceType } from '../../types'
 
 const statuses: TenderStatus[] = ['identified', 'reviewing', 'qualifying', 'bid-prep', 'submitted', 'won', 'lost']
 const smartSearches = [
@@ -13,6 +13,7 @@ const smartSearches = [
   'cybersecurity',
 ]
 const ALL_PROVINCES = 'All provinces'
+const ALL_SOURCES = 'All sources'
 const PAGE_SIZE = 20
 
 function formatDate(value?: string) {
@@ -39,6 +40,19 @@ function getClosingBadge(days: number | null) {
   return { label: 'Open window', className: 'border-emerald-400/20 bg-emerald-400/10 text-emerald-100' }
 }
 
+function getSourceBadge(type: TenderSourceType) {
+  switch (type) {
+    case 'government':
+      return 'border-sky-400/20 bg-sky-400/10 text-sky-100'
+    case 'platform':
+      return 'border-fuchsia-400/20 bg-fuchsia-400/10 text-fuchsia-100'
+    case 'private_sector':
+      return 'border-violet-400/20 bg-violet-400/10 text-violet-100'
+    default:
+      return 'border-slate-400/20 bg-white/5 text-slate-200'
+  }
+}
+
 export function TendersPage() {
   const [profile, setProfile] = useState<Profile | null>(null)
   const [query, setQuery] = useState('managed services')
@@ -47,6 +61,7 @@ export function TendersPage() {
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [selectedProvince, setSelectedProvince] = useState(ALL_PROVINCES)
+  const [selectedSource, setSelectedSource] = useState<string>(ALL_SOURCES)
   const [openOnly, setOpenOnly] = useState(true)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
@@ -107,15 +122,27 @@ export function TendersPage() {
     return [ALL_PROVINCES, ...Array.from(set)]
   }, [results])
 
+  const sourceOptions = useMemo(() => {
+    const set = new Set<string>()
+    results.forEach((result) => set.add(result.source_type))
+    return [ALL_SOURCES, ...Array.from(set)]
+  }, [results])
+
   const filteredResults = useMemo(() => {
     return results.filter((result) => {
       const closeDays = daysUntil(result.end_date)
       if (openOnly && closeDays !== null && closeDays < 0) return false
-      if (selectedProvince === ALL_PROVINCES) return true
-      if (selectedProvince === 'National') return !!result.is_national
-      return result.province === selectedProvince
+      if (selectedProvince !== ALL_PROVINCES) {
+        if (selectedProvince === 'National') {
+          if (!result.is_national) return false
+        } else if (result.province !== selectedProvince) {
+          return false
+        }
+      }
+      if (selectedSource !== ALL_SOURCES && result.source_type !== selectedSource) return false
+      return true
     })
-  }, [openOnly, results, selectedProvince])
+  }, [openOnly, results, selectedProvince, selectedSource])
 
   const grouped = useMemo(
     () => Object.fromEntries(statuses.map((status) => [status, savedTenders.filter((tender) => tender.status === status)])),
@@ -127,11 +154,11 @@ export function TendersPage() {
       <div className="card p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="badge mb-3">Pro feature · Phase 2</div>
+            <div className="badge mb-3">Pro feature · Phase 3</div>
             <h1 className="text-2xl font-semibold text-white">Tender search and tender pipeline</h1>
             <p className="mt-2 max-w-3xl text-slate-300">
-              Tender search now uses structured procurement data instead of HTML page scraping. That improves relevance,
-              lets the search respond properly to your keywords, and adds more reliable pagination.
+              Tender search now combines official public procurement data with platform/private-sector signals where available,
+              then normalizes them into one searchable pipeline.
             </p>
           </div>
 
@@ -173,10 +200,10 @@ export function TendersPage() {
           ))}
         </div>
 
-        <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1fr]">
+        <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1fr_1fr]">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="text-sm font-medium text-white">Province filter</div>
-            <div className="mt-1 text-xs text-slate-400">Use extracted province information to focus on countrywide or specific regional opportunities.</div>
+            <div className="mt-1 text-xs text-slate-400">Focus on national or regional opportunities.</div>
             <div className="mt-4 flex flex-wrap gap-2">
               {provinceOptions.map((option) => (
                 <button
@@ -196,8 +223,29 @@ export function TendersPage() {
           </div>
 
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+            <div className="text-sm font-medium text-white">Source filter</div>
+            <div className="mt-1 text-xs text-slate-400">Filter official government sources, platform aggregations, or private-sector signals.</div>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {sourceOptions.map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setSelectedSource(option)}
+                  className={`rounded-full border px-3 py-2 text-xs transition ${
+                    selectedSource === option
+                      ? 'border-sky-400/40 bg-sky-400/15 text-sky-100'
+                      : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                  }`}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="text-sm font-medium text-white">Tender window focus</div>
-            <div className="mt-1 text-xs text-slate-400">Hide opportunities that appear to be closed and surface tenders that are still worth reviewing.</div>
+            <div className="mt-1 text-xs text-slate-400">Hide opportunities that appear to be closed.</div>
             <label className="mt-4 flex items-center gap-3 text-sm text-slate-200">
               <input type="checkbox" checked={openOnly} onChange={(event) => setOpenOnly(event.target.checked)} />
               Show open or undated tenders only
@@ -206,7 +254,7 @@ export function TendersPage() {
         </div>
 
         <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-400">
-          <span>Structured data source active</span>
+          <span>Multi-source engine active</span>
           <span>•</span>
           <span>Page {page}</span>
           <span>•</span>
@@ -236,6 +284,7 @@ export function TendersPage() {
                       <div className="mt-1 text-sm text-slate-400">{tender.publisher || 'Official source'}</div>
                     </div>
                     <div className="flex flex-wrap gap-2">
+                      <div className={`badge border ${getSourceBadge(tender.source_type)}`}>{tender.source_label}</div>
                       <div className="badge">Tender score {tender.score}</div>
                       <div className={`badge border ${closeBadge.className}`}>{closeBadge.label}</div>
                     </div>
@@ -259,7 +308,7 @@ export function TendersPage() {
                     <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                       <div className="text-xs uppercase tracking-wide text-slate-400">Qualification / notes</div>
                       <div className="mt-2 text-sm text-slate-200">
-                        {tender.qualification_notes || 'Qualification details are not explicit in the current structured record.'}
+                        {tender.qualification_notes || 'Qualification details are not explicit in the current record.'}
                       </div>
                     </div>
                   </div>
@@ -306,7 +355,7 @@ export function TendersPage() {
 
           {isPro && results.length ? (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-              <div className="text-sm text-slate-400">Structured API page {page}</div>
+              <div className="text-sm text-slate-400">Multi-source page {page}</div>
               <div className="flex items-center gap-2">
                 <button
                   type="button"
@@ -340,6 +389,9 @@ export function TendersPage() {
                     <article key={tender.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
                       <div className="font-medium text-white">{tender.title}</div>
                       <div className="mt-1 text-xs text-slate-400">{tender.publisher}</div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span className={`badge border ${getSourceBadge(tender.source_type)}`}>{tender.source_label}</span>
+                      </div>
                       <div className="mt-2 text-xs text-slate-300">
                         {tender.is_national ? 'National / Countrywide' : tender.province || 'Province not extracted'}
                       </div>

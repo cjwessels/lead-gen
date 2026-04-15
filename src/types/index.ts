@@ -2,6 +2,7 @@ export type PlanCode = 'free' | 'starter' | 'pro'
 export type LeadStatus = 'new' | 'qualified' | 'contacted' | 'follow-up' | 'proposal-sent' | 'won' | 'lost'
 export type LeadHeat = 'hot' | 'warm' | 'cool' | 'low'
 export type TenderStatus = 'identified' | 'reviewing' | 'qualifying' | 'bid-prep' | 'submitted' | 'won' | 'lost'
+export type TenderSourceType = 'government' | 'platform' | 'private_sector'
 
 export interface Lead {
   id: string
@@ -56,6 +57,8 @@ export interface OutreachPack {
 
 export interface TenderSearchResult {
   source_id: string
+  source_type: TenderSourceType
+  source_label: string
   title: string
   summary: string
   publisher: string
@@ -77,7 +80,7 @@ export interface TenderSearchResponse {
   pageSize: number
   hasMore: boolean
   total?: number
-  source: 'ocds_api'
+  source: 'multi_source'
 }
 
 export interface Tender extends TenderSearchResult {

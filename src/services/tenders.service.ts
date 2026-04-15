@@ -6,6 +6,8 @@ function mapRowToTender(row: any): Tender {
     id: row.id,
     user_id: row.user_id,
     source_id: row.source_id,
+    source_type: row.source_type ?? 'government',
+    source_label: row.source_label ?? 'Official source',
     title: row.title,
     summary: row.summary ?? '',
     publisher: row.publisher ?? '',
@@ -50,7 +52,7 @@ export async function searchTenders(query: string, page = 1, pageSize = 20): Pro
     pageSize: Number(data?.pageSize || pageSize),
     hasMore: Boolean(data?.hasMore),
     total: data?.total ? Number(data.total) : undefined,
-    source: 'ocds_api',
+    source: 'multi_source',
   }
 }
 
@@ -86,6 +88,8 @@ export async function saveTender(tender: TenderSearchResult): Promise<Tender> {
     .insert({
       user_id: userId,
       source_id: tender.source_id,
+      source_type: tender.source_type,
+      source_label: tender.source_label,
       title: tender.title,
       summary: tender.summary,
       publisher: tender.publisher,
