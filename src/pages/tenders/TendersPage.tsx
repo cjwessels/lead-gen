@@ -157,8 +157,7 @@ export function TendersPage() {
             <div className="badge mb-3">Pro feature · Phase 3</div>
             <h1 className="text-2xl font-semibold text-white">Tender search and tender pipeline</h1>
             <p className="mt-2 max-w-3xl text-slate-300">
-              Tender search now combines official public procurement data with platform/private-sector signals where available,
-              then normalizes them into one searchable pipeline.
+              Tender search now combines official public procurement data with platform/private-sector signals where available, then normalizes them into one searchable pipeline. You can use structured queries like province:"Western Cape" keyword:"managed services" source:government.
             </p>
           </div>
 
@@ -174,7 +173,7 @@ export function TendersPage() {
             className="input"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search tenders e.g. managed services, office automation, network management"
+            placeholder='Example: province:"Western Cape" keyword:"managed services" source:government'
             disabled={!isPro}
           />
           <button

@@ -1,17 +1,22 @@
 import { supabase } from '../lib/supabase'
 import { scoreLead } from '../lib/leadScoring'
+import { buildLeadSearchText, inferCityFromAddress, parseStructuredSearch } from '../lib/structuredSearch'
 import type { Lead, SearchResponse } from '../types'
 
-function toLeadModel(item: SearchResponse['places'][number], cityHint: string): Lead {
+function toLeadModel(
+  item: SearchResponse['places'][number],
+  preferredCity?: string,
+): Lead {
   const category = item.primaryTypeDisplayName?.text || 'Business'
   const website = item.websiteUri || ''
   const reviewCount = item.userRatingCount || 0
+  const city = inferCityFromAddress(item.formattedAddress, preferredCity)
 
   const lead: Lead = {
     id: item.id || crypto.randomUUID(),
     name: item.displayName?.text || 'Unnamed business',
     category,
-    city: cityHint,
+    city,
     phone: item.nationalPhoneNumber || '',
     website,
     rating: item.rating || 0,
@@ -36,7 +41,6 @@ export async function searchPlaces(query: string): Promise<Lead[]> {
     data: { session },
     error: sessionError,
   } = await supabase.auth.getSession()
-  
 
   if (sessionError) {
     throw sessionError
@@ -46,21 +50,24 @@ export async function searchPlaces(query: string): Promise<Lead[]> {
     throw new Error('You must be signed in to search')
   }
 
+  const parsed = parseStructuredSearch(query)
+  const searchText = buildLeadSearchText(parsed)
+
   const { data, error } = await supabase.functions.invoke('places-search', {
-  body: { query },
-  headers: {
-    Authorization: `Bearer ${session.access_token}`,
-  },
-})
+    body: {
+      query,
+      searchText,
+    },
+    headers: {
+      Authorization: `Bearer ${session.access_token}`,
+    },
+  })
 
   if (error) {
     throw new Error(error.message || 'Search failed')
   }
 
-  
-
   const payload = data as SearchResponse
-  const cityHint = query.split(' ').slice(-1)[0] || 'South Africa'
 
-  return (payload.places || []).map((item) => toLeadModel(item, cityHint))
+  return (payload.places || []).map((item) => toLeadModel(item, parsed.city))
 }

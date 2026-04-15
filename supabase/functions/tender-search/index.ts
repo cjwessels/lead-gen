@@ -87,7 +87,8 @@ serve(async (req) => {
     const { query, page = 1, pageSize = 20 } = await req.json()
     if (!query || typeof query !== 'string') return json({ error: 'Invalid query' }, 400)
 
-    const keywords = expandKeywords(query)
+    const parsed = parseStructuredSearch(query)
+    const keywords = expandKeywords(buildTenderSearchText(parsed))
     const [governmentSource, platformResults] = await Promise.all([
       fetchStructuredGovernmentSource(Number(page), Number(pageSize), keywords),
       fetchPlatformSources(keywords),
@@ -96,7 +97,8 @@ serve(async (req) => {
     const merged = dedupeResults([
       ...governmentSource.results,
       ...platformResults,
-    ]).sort((a, b) => b.score - a.score)
+    ]).filter((item) => matchesStructuredFilters(item, parsed))
+      .sort((a, b) => b.score - a.score)
 
     const pageStart = (Number(page) - 1) * Number(pageSize)
     const pageEnd = pageStart + Number(pageSize)
@@ -466,14 +468,82 @@ function slugify(value: string) {
     .slice(0, 120)
 }
 
-function json(payload: unknown, status = 200) {
-  return new Response(JSON.stringify(payload), {
-    status,
-    headers: {
-      ...corsHeaders,
-      'Content-Type': 'application/json',
-    },
-  })
+const FIELD_ALIASES = {
+  city: 'city',
+  town: 'city',
+  location: 'city',
+  province: 'province',
+  keyword: 'keyword',
+  keywords: 'keyword',
+  service: 'service',
+  category: 'category',
+  source: 'source',
+  custom: 'custom',
+  text: 'custom',
+  q: 'custom',
+}
+
+function parseStructuredSearch(input: string) {
+  const query = {
+    raw: (input || '').trim(),
+    freeText: (input || '').trim(),
+    city: undefined,
+    province: undefined,
+    keyword: undefined,
+    service: undefined,
+    category: undefined,
+    source: undefined,
+    custom: undefined,
+  }
+
+  let working = query.raw
+  const matches = [...query.raw.matchAll(/(\w+):(?:"([^"]+)"|(\S+))/g)]
+
+  for (const match of matches) {
+    const key = match[1]?.toLowerCase()
+    const value = (match[2] || match[3] || '').trim()
+    const mapped = key ? FIELD_ALIASES[key] : undefined
+    if (mapped && value) query[mapped] = value
+    working = working.replace(match[0], ' ')
+  }
+
+  working = working.replace(/\s+/g, ' ').trim()
+  query.freeText = working
+  return query
+}
+
+function buildTenderSearchText(query) {
+  return [query.keyword, query.service, query.category, query.custom, query.freeText]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function matchesStructuredFilters(item: TenderResult, query) {
+  if (query.source) {
+    const source = query.source.toLowerCase()
+    if (
+      item.source_type.toLowerCase() !== source &&
+      item.source_label.toLowerCase() !== source &&
+      !item.source_label.toLowerCase().includes(source)
+    ) {
+      return false
+    }
+  }
+
+  if (query.province) {
+    const province = query.province.toLowerCase()
+    if ((item.province || '').toLowerCase() !== province) return false
+  }
+
+  if (query.city) {
+    const city = query.city.toLowerCase()
+    const haystack = `${item.location_text || ''} ${item.summary} ${item.title}`.toLowerCase()
+    if (!haystack.includes(city)) return false
+  }
+
+  return true
 }
 
 function expandKeywords(query: string) {
@@ -496,4 +566,14 @@ function expandKeywords(query: string) {
   })
 
   return Array.from(expanded)
+}
+
+function json(payload: unknown, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
+    headers: {
+      ...corsHeaders,
+      'Content-Type': 'application/json',
+    },
+  })
 }

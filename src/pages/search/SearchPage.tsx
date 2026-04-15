@@ -96,7 +96,7 @@ export function SearchPage() {
           <div>
             <h1 className="text-2xl font-semibold text-white">Lead search</h1>
             <p className="mt-2 text-slate-300">
-              Search South African niches by area, surface the best opportunities first, and save strong prospects to your CRM.
+              Search South African niches by area, surface the best opportunities first, and save strong prospects to your CRM. You can also use structured queries such as city:"Cape Town" keyword:"panel beaters" service:"VW parts".
             </p>
           </div>
 
@@ -114,7 +114,7 @@ export function SearchPage() {
         </div>
 
         <div className="mt-5 flex flex-col gap-3 md:flex-row">
-          <input className="input" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input className="input" value={query} onChange={(e) => setQuery(e.target.value)} placeholder='Example: city:"Cape Town" keyword:"panel beaters" service:"VW Polo"' />
           <button onClick={onSearch} className="rounded-2xl bg-sky-400 px-5 py-3 font-medium text-slate-950 hover:bg-sky-300">
             {loading ? 'Searching...' : 'Search'}
           </button>

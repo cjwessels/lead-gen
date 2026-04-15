@@ -64,9 +64,14 @@ serve(async (req) => {
       })
     }
 
-    const { query } = await req.json()
+    const body = await req.json()
+    const rawQuery = typeof body?.query === 'string' ? body.query : ''
+    const parsed = parseStructuredSearch(rawQuery)
+    const searchText = typeof body?.searchText === 'string' && body.searchText.trim()
+      ? body.searchText.trim()
+      : buildLeadSearchText(parsed)
 
-    if (!query || typeof query !== 'string') {
+    if (!searchText) {
       return new Response(JSON.stringify({ error: 'Invalid query' }), {
         status: 400,
         headers: {
@@ -96,7 +101,7 @@ serve(async (req) => {
           'places.id,places.displayName,places.formattedAddress,places.websiteUri,places.nationalPhoneNumber,places.rating,places.userRatingCount,places.primaryTypeDisplayName',
       },
       body: JSON.stringify({
-        textQuery: query,
+        textQuery: searchText,
         pageSize: 20,
       }),
     })
@@ -129,3 +134,66 @@ serve(async (req) => {
     )
   }
 })
+
+const FIELD_ALIASES = {
+  city: 'city',
+  town: 'city',
+  location: 'city',
+  province: 'province',
+  keyword: 'keyword',
+  keywords: 'keyword',
+  service: 'service',
+  category: 'category',
+  source: 'source',
+  custom: 'custom',
+  text: 'custom',
+  q: 'custom',
+}
+
+function parseStructuredSearch(input: string) {
+  const query = {
+    raw: (input || '').trim(),
+    freeText: (input || '').trim(),
+    city: undefined,
+    province: undefined,
+    keyword: undefined,
+    service: undefined,
+    category: undefined,
+    source: undefined,
+    custom: undefined,
+  }
+
+  let working = query.raw
+  const matches = [...query.raw.matchAll(/(\w+):(?:"([^"]+)"|(\S+))/g)]
+
+  for (const match of matches) {
+    const key = match[1]?.toLowerCase()
+    const value = (match[2] || match[3] || '').trim()
+    const mapped = key ? FIELD_ALIASES[key] : undefined
+    if (mapped && value) query[mapped] = value
+    working = working.replace(match[0], ' ')
+  }
+
+  const quotedPhrases = [...working.matchAll(/"([^"]+)"/g)].map((m) => m[1].trim()).filter(Boolean)
+  for (const phrase of quotedPhrases) {
+    if (!query.city && looksLikeLocation(phrase)) query.city = phrase
+    working = working.replace(`"${phrase}"`, ' ')
+  }
+
+  working = working.replace(/\s+/g, ' ').trim()
+  query.freeText = working
+
+  return query
+}
+
+function buildLeadSearchText(query) {
+  return [query.keyword, query.service, query.category, query.custom, query.freeText, query.city, query.province]
+    .filter(Boolean)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function looksLikeLocation(value) {
+  return /(?:cape town|johannesburg|pretoria|durban|port elizabeth|east london|bloemfontein|polokwane|mbombela|nelspruit|kimberley|stellenbosch|george|gauteng|western cape|eastern cape|kwazul[ -]?natal|north west)/i.test(value)
+}
