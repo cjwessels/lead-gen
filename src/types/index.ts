@@ -1,6 +1,7 @@
 export type PlanCode = 'free' | 'starter' | 'pro'
 export type LeadStatus = 'new' | 'qualified' | 'contacted' | 'follow-up' | 'proposal-sent' | 'won' | 'lost'
 export type LeadHeat = 'hot' | 'warm' | 'cool' | 'low'
+export type TenderStatus = 'identified' | 'reviewing' | 'qualifying' | 'bid-prep' | 'submitted' | 'won' | 'lost'
 
 export interface Lead {
   id: string
@@ -51,4 +52,25 @@ export interface OutreachPack {
   whatsappBody: string
   callOpener: string
   source: 'local' | 'ai'
+}
+
+export interface TenderSearchResult {
+  source_id: string
+  title: string
+  summary: string
+  publisher: string
+  start_date?: string
+  end_date?: string
+  qualification_notes?: string
+  source_url?: string
+  score: number
+  keywords: string[]
+  focus_tags: string[]
+}
+
+export interface Tender extends TenderSearchResult {
+  id: string
+  user_id?: string
+  status: TenderStatus
+  created_at?: string
 }

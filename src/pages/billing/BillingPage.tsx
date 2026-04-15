@@ -3,7 +3,7 @@ import { createCheckoutSession, submitPayfastForm } from '../../services/billing
 
 const plans = [
   { code: 'starter', name: 'Starter', price: 'R99 / month', features: ['200 searches / month', 'Lead scoring', 'Pipeline board'] },
-  { code: 'pro', name: 'Pro', price: 'R299 / month', features: ['Unlimited saved leads', 'Outreach tools', 'Priority support'] },
+  { code: 'pro', name: 'Pro', price: 'R299 / month', features: ['Unlimited saved leads', 'Outreach tools', 'Tender search and tender pipeline', 'Priority support'] },
 ] as const
 
 export function BillingPage() {

@@ -11,6 +11,7 @@ const links = [
   { to: '/app/leads', label: 'Saved Leads' },
   { to: '/app/pipeline', label: 'Pipeline' },
   { to: '/app/outreach', label: 'Outreach' },
+  { to: '/app/tenders', label: 'Tenders' },
   { to: '/app/billing', label: 'Billing' },
 ]
 

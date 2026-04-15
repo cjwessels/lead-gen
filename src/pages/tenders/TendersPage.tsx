@@ -1,0 +1,240 @@
+import { useEffect, useMemo, useState } from 'react'
+import { fetchProfile } from '../../services/profile.service'
+import { fetchSavedTenders, saveTender, searchTenders, updateTenderStatus } from '../../services/tenders.service'
+import type { Profile, Tender, TenderSearchResult, TenderStatus } from '../../types'
+
+const statuses: TenderStatus[] = ['identified', 'reviewing', 'qualifying', 'bid-prep', 'submitted', 'won', 'lost']
+const smartSearches = [
+  'managed services',
+  'office automation',
+  'network management',
+  'IT support',
+  'document management',
+  'cybersecurity',
+]
+
+function formatDate(value?: string) {
+  if (!value) return 'Not provided'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleDateString()
+}
+
+export function TendersPage() {
+  const [profile, setProfile] = useState<Profile | null>(null)
+  const [query, setQuery] = useState('managed services')
+  const [results, setResults] = useState<TenderSearchResult[]>([])
+  const [savedTenders, setSavedTenders] = useState<Tender[]>([])
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState('')
+
+  useEffect(() => {
+    void fetchProfile().then(setProfile).catch(() => setProfile(null))
+    void fetchSavedTenders().then(setSavedTenders).catch(() => setSavedTenders([]))
+  }, [])
+
+  const isPro = profile?.plan === 'pro'
+
+  async function onSearch() {
+    if (!isPro) return
+    setLoading(true)
+    setMessage('')
+    try {
+      setResults(await searchTenders(query))
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Tender search failed')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function onSave(tender: TenderSearchResult) {
+    try {
+      const saved = await saveTender(tender)
+      setSavedTenders((current) => {
+        const exists = current.some((item) => item.id === saved.id)
+        return exists ? current : [saved, ...current]
+      })
+      setMessage(`Saved tender: ${tender.title}`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not save tender')
+    }
+  }
+
+  async function onStatusChange(id: string, status: TenderStatus) {
+    try {
+      await updateTenderStatus(id, status)
+      setSavedTenders((current) => current.map((item) => (item.id === id ? { ...item, status } : item)))
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not update tender')
+    }
+  }
+
+  const grouped = useMemo(
+    () => Object.fromEntries(statuses.map((status) => [status, savedTenders.filter((tender) => tender.status === status)])),
+    [savedTenders],
+  )
+
+  return (
+    <div className="space-y-6">
+      <div className="card p-6">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <div className="badge mb-3">Pro feature</div>
+            <h1 className="text-2xl font-semibold text-white">Tender search and tender pipeline</h1>
+            <p className="mt-2 max-w-3xl text-slate-300">
+              Search active South African tender opportunities with smart matching for focus areas like managed services,
+              office automation, network management, IT support, and related service keywords.
+            </p>
+          </div>
+
+          {!isPro ? (
+            <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+              Tender search is available to Pro subscribers only. Upgrade on Billing to unlock it.
+            </div>
+          ) : null}
+        </div>
+
+        <div className="mt-5 flex flex-col gap-3 md:flex-row">
+          <input
+            className="input"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search tenders e.g. managed services, office automation, network management"
+            disabled={!isPro}
+          />
+          <button
+            onClick={onSearch}
+            disabled={!isPro}
+            className="rounded-2xl bg-sky-400 px-5 py-3 font-medium text-slate-950 hover:bg-sky-300 disabled:cursor-not-allowed disabled:opacity-40"
+          >
+            {loading ? 'Searching...' : 'Search tenders'}
+          </button>
+        </div>
+
+        <div className="mt-4 flex flex-wrap gap-2">
+          {smartSearches.map((value) => (
+            <button
+              key={value}
+              type="button"
+              disabled={!isPro}
+              onClick={() => setQuery(value)}
+              className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300 hover:bg-white/10 disabled:opacity-40"
+            >
+              {value}
+            </button>
+          ))}
+        </div>
+
+        {message ? <div className="mt-4 text-sm text-slate-300">{message}</div> : null}
+      </div>
+
+      <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold text-white">Open tender results</h2>
+          {results.length ? (
+            results.map((tender) => (
+              <article key={tender.source_id} className="card p-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">{tender.title}</h3>
+                    <div className="mt-1 text-sm text-slate-400">{tender.publisher || 'Official source'}</div>
+                  </div>
+                  <div className="badge">Tender score {tender.score}</div>
+                </div>
+
+                <p className="mt-4 text-sm leading-6 text-slate-300">{tender.summary}</p>
+
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="text-xs uppercase tracking-wide text-slate-400">Dates</div>
+                    <div className="mt-2 text-sm text-slate-200">Start: {formatDate(tender.start_date)}</div>
+                    <div className="mt-1 text-sm text-slate-200">Close: {formatDate(tender.end_date)}</div>
+                  </div>
+
+                  <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <div className="text-xs uppercase tracking-wide text-slate-400">Qualification / notes</div>
+                    <div className="mt-2 text-sm text-slate-200">
+                      {tender.qualification_notes || 'Qualification details not extracted from the source text yet.'}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {tender.focus_tags.map((tag) => (
+                    <span key={tag} className="badge border border-sky-400/25 bg-sky-400/10 text-sky-100">
+                      {tag}
+                    </span>
+                  ))}
+                </div>
+
+                <div className="mt-5 flex flex-wrap gap-3">
+                  <button
+                    type="button"
+                    onClick={() => void onSave(tender)}
+                    disabled={!isPro}
+                    className="rounded-2xl bg-white/10 px-4 py-3 text-sm text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    Save to tender pipeline
+                  </button>
+
+                  {tender.source_url ? (
+                    <a
+                      href={tender.source_url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10"
+                    >
+                      Open source
+                    </a>
+                  ) : null}
+                </div>
+              </article>
+            ))
+          ) : (
+            <div className="card p-6 text-slate-400">
+              {isPro
+                ? 'Search results will appear here. Use a service phrase such as managed services or office automation.'
+                : 'Upgrade to Pro to unlock active tender search and tender pipeline management.'}
+            </div>
+          )}
+        </section>
+
+        <section className="space-y-4">
+          <h2 className="text-xl font-semibold text-white">Tender pipeline</h2>
+          {statuses.map((status) => (
+            <div key={status} className="card p-4">
+              <div className="mb-3 text-sm font-medium uppercase tracking-wide text-sky-300">{status}</div>
+              <div className="space-y-3">
+                {(grouped[status] || []).length ? (
+                  grouped[status].map((tender) => (
+                    <article key={tender.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                      <div className="font-medium text-white">{tender.title}</div>
+                      <div className="mt-1 text-xs text-slate-400">{tender.publisher}</div>
+                      <div className="mt-3 text-xs text-slate-300">Close: {formatDate(tender.end_date)}</div>
+                      <select
+                        className="input mt-3 w-full"
+                        value={tender.status}
+                        onChange={(event) => void onStatusChange(tender.id, event.target.value as TenderStatus)}
+                      >
+                        {statuses.map((option) => (
+                          <option key={option} value={option}>
+                            {option}
+                          </option>
+                        ))}
+                      </select>
+                    </article>
+                  ))
+                ) : (
+                  <div className="rounded-2xl border border-dashed border-white/10 p-4 text-xs text-slate-500">
+                    No tenders
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </section>
+      </div>
+    </div>
+  )
+}
