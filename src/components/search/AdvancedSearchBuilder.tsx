@@ -7,6 +7,7 @@ interface FieldConfig {
   key: FieldKey
   label: string
   placeholder: string
+  suggestions?: string[]
 }
 
 interface AdvancedSearchBuilderProps {
@@ -104,17 +105,55 @@ export function AdvancedSearchBuilder({
       {expanded ? (
         <div className="mt-4 space-y-4">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {fields.map((field) => (
-              <label key={field.key} className="block">
-                <div className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">{field.label}</div>
-                <input
-                  className="input"
-                  value={state[field.key]}
-                  onChange={(event) => updateField(field.key, event.target.value)}
-                  placeholder={field.placeholder}
-                />
-              </label>
-            ))}
+            {fields.map((field) => {
+              const listId = `${field.key}-suggestions`
+              const hasSuggestions = !!field.suggestions?.length
+              return (
+                <label key={field.key} className="block">
+                  <div className="mb-2 flex items-center justify-between gap-3">
+                    <div className="text-xs font-medium uppercase tracking-wide text-slate-400">{field.label}</div>
+                    {hasSuggestions ? (
+                      <span className="text-[10px] uppercase tracking-wide text-sky-300">Suggestions</span>
+                    ) : null}
+                  </div>
+
+                  <input
+                    className="input"
+                    value={state[field.key]}
+                    onChange={(event) => updateField(field.key, event.target.value)}
+                    placeholder={field.placeholder}
+                    list={hasSuggestions ? listId : undefined}
+                  />
+
+                  {hasSuggestions ? (
+                    <>
+                      <datalist id={listId}>
+                        {field.suggestions!.map((item) => (
+                          <option key={item} value={item} />
+                        ))}
+                      </datalist>
+
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        {field.suggestions!.slice(0, 6).map((item) => (
+                          <button
+                            key={item}
+                            type="button"
+                            onClick={() => updateField(field.key, item)}
+                            className={`rounded-full border px-2.5 py-1 text-[11px] transition ${
+                              state[field.key] === item
+                                ? 'border-sky-400/40 bg-sky-400/15 text-sky-100'
+                                : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
+                            }`}
+                          >
+                            {item}
+                          </button>
+                        ))}
+                      </div>
+                    </>
+                  ) : null}
+                </label>
+              )
+            })}
 
             <label className="block md:col-span-2 xl:col-span-3">
               <div className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">Additional free text</div>

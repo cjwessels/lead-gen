@@ -1,28 +1,43 @@
+import { supabase } from '../lib/supabase'
 import type { CheckoutPayload, PlanCode } from '../types'
 
 export async function createCheckoutSession(plan: Exclude<PlanCode, 'free'>): Promise<CheckoutPayload> {
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
-  if (!supabaseUrl || !supabaseAnonKey) throw new Error('Supabase env vars are required')
+  if (!supabase) {
+    throw new Error('Supabase is not configured')
+  }
 
-  const response = await fetch(`${supabaseUrl}/functions/v1/create-payfast-payment`, {
-    method: 'POST',
+  const {
+    data: { session },
+    error: sessionError,
+  } = await supabase.auth.getSession()
+
+  if (sessionError) {
+    throw sessionError
+  }
+
+  if (!session?.access_token) {
+    throw new Error('You must be signed in to start checkout')
+  }
+
+  const { data, error } = await supabase.functions.invoke('create-payfast-payment', {
+    body: { plan },
     headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${supabaseAnonKey}`,
+      Authorization: `Bearer ${session.access_token}`,
     },
-    body: JSON.stringify({ plan }),
   })
 
-  const payload = await response.json()
-  if (!response.ok) throw new Error(payload.error || 'Could not create checkout session')
-  return payload
+  if (error) {
+    throw new Error(error.message || 'Could not create checkout session')
+  }
+
+  return data as CheckoutPayload
 }
 
 export function submitPayfastForm(checkout: CheckoutPayload) {
   const form = document.createElement('form')
   form.method = 'POST'
   form.action = checkout.paymentUrl
+
   Object.entries(checkout.formFields).forEach(([key, value]) => {
     const input = document.createElement('input')
     input.type = 'hidden'
@@ -30,6 +45,7 @@ export function submitPayfastForm(checkout: CheckoutPayload) {
     input.value = value
     form.appendChild(input)
   })
+
   document.body.appendChild(form)
   form.submit()
 }

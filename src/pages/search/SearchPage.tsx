@@ -7,11 +7,39 @@ import type { Lead } from '../../types'
 
 const ITEMS_PER_PAGE = 8
 const ALL_PAIN_POINTS = 'All'
+const COMMON_CITIES = [
+  'Cape Town',
+  'Johannesburg',
+  'Durban',
+  'Pretoria',
+  'Port Elizabeth',
+  'Gqeberha',
+  'East London',
+  'Bloemfontein',
+  'Polokwane',
+  'Nelspruit',
+  'Mbombela',
+  'Kimberley',
+  'George',
+  'Pietermaritzburg',
+]
+
+const COMMON_LEAD_KEYWORDS = [
+  'panel beaters',
+  'plumbers',
+  'electricians',
+  'auto spares',
+  'construction companies',
+  'engineering firms',
+  'managed services',
+  'office automation',
+]
+
 const LEAD_FIELDS = [
-  { key: 'city', label: 'City', placeholder: 'Cape Town' },
-  { key: 'keyword', label: 'Keyword', placeholder: 'panel beaters' },
+  { key: 'city', label: 'City', placeholder: 'Cape Town', suggestions: COMMON_CITIES },
+  { key: 'keyword', label: 'Keyword', placeholder: 'panel beaters', suggestions: COMMON_LEAD_KEYWORDS },
   { key: 'service', label: 'Service / niche', placeholder: 'VW Polo parts' },
-  { key: 'category', label: 'Category', placeholder: 'automotive' },
+  { key: 'category', label: 'Category', placeholder: 'automotive', suggestions: ['automotive', 'home services', 'IT services', 'industrial', 'retail'] },
   { key: 'custom', label: 'Custom focus', placeholder: 'fleet repairs' },
 ] as const
 

@@ -16,13 +16,44 @@ const smartSearches = [
 const ALL_PROVINCES = 'All provinces'
 const ALL_SOURCES = 'All sources'
 const PAGE_SIZE = 20
+const PROVINCE_SUGGESTIONS = [
+  'Western Cape',
+  'Gauteng',
+  'KwaZulu-Natal',
+  'Eastern Cape',
+  'Free State',
+  'Limpopo',
+  'Mpumalanga',
+  'North West',
+  'Northern Cape',
+]
+
+const CITY_SUGGESTIONS = [
+  'Cape Town',
+  'Johannesburg',
+  'Durban',
+  'Pretoria',
+  'Port Elizabeth',
+  'Gqeberha',
+  'Bloemfontein',
+]
+
+const TENDER_KEYWORDS = [
+  'managed services',
+  'office automation',
+  'network management',
+  'IT support',
+  'document management',
+  'cybersecurity',
+]
+
 const TENDER_FIELDS = [
-  { key: 'province', label: 'Province', placeholder: 'Western Cape' },
-  { key: 'city', label: 'City / place', placeholder: 'Cape Town' },
-  { key: 'keyword', label: 'Keyword', placeholder: 'managed services' },
-  { key: 'service', label: 'Service / solution', placeholder: 'network management' },
-  { key: 'category', label: 'Category', placeholder: 'IT support' },
-  { key: 'source', label: 'Source', placeholder: 'government / platform / private_sector' },
+  { key: 'province', label: 'Province', placeholder: 'Western Cape', suggestions: PROVINCE_SUGGESTIONS },
+  { key: 'city', label: 'City / place', placeholder: 'Cape Town', suggestions: CITY_SUGGESTIONS },
+  { key: 'keyword', label: 'Keyword', placeholder: 'managed services', suggestions: TENDER_KEYWORDS },
+  { key: 'service', label: 'Service / solution', placeholder: 'network management', suggestions: TENDER_KEYWORDS },
+  { key: 'category', label: 'Category', placeholder: 'IT support', suggestions: ['IT support', 'networking', 'office automation', 'document management', 'software', 'security'] },
+  { key: 'source', label: 'Source', placeholder: 'government / platform / private_sector', suggestions: ['government', 'platform', 'private_sector'] },
   { key: 'custom', label: 'Custom focus', placeholder: 'SLA support contract' },
 ] as const
 
