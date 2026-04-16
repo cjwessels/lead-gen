@@ -1,14 +1,18 @@
-import { useAuth } from "@/store/auth";
-import { Navigate } from "react-router-dom";
+import type { PropsWithChildren } from 'react'
+import { Navigate, useLocation } from 'react-router-dom'
+import { useAuth } from '../modules/auth/AuthProvider'
 
-export default function ProtectedRoute({ children }: any) {
-  const { user, loading } = useAuth();
+export function ProtectedRoute({ children }: PropsWithChildren) {
+  const { user, loading } = useAuth()
+  const location = useLocation()
 
-  if (loading) return <div>Loading...</div>;
+  if (loading) {
+    return <div className="grid min-h-screen place-items-center text-slate-300">Loading...</div>
+  }
 
-  if (!user) return <Navigate to="/login" replace />;
+  if (!user) {
+    return <Navigate to="/login" replace state={{ from: location.pathname }} />
+  }
 
-  if (user) return <Navigate to="/app/dashboard" />;
-
-  return children;
+  return <>{children}</>
 }

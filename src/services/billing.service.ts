@@ -30,6 +30,10 @@ export async function createCheckoutSession(plan: Exclude<PlanCode, 'free'>): Pr
     throw new Error(error.message || 'Could not create checkout session')
   }
 
+  if (!data?.paymentUrl || !data?.formFields || typeof data.paymentUrl !== 'string') {
+    throw new Error('Checkout session response is incomplete')
+  }
+
   return data as CheckoutPayload
 }
 
