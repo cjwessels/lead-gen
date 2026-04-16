@@ -1,3 +1,4 @@
+import md5 from 'https://esm.sh/blueimp-md5@2.19.0'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts'
 
@@ -12,27 +13,45 @@ serve(async (req) => {
   }
 
   try {
-    if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405)
+    if (req.method !== 'POST') {
+      return json({ error: 'Method not allowed' }, 405)
+    }
 
     const supabase = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_ANON_KEY') ?? '',
-      { global: { headers: { Authorization: req.headers.get('Authorization') ?? '' } } },
+      {
+        global: {
+          headers: {
+            Authorization: req.headers.get('Authorization') ?? '',
+          },
+        },
+      },
     )
 
     const { data: auth } = await supabase.auth.getUser()
-    if (!auth.user) return json({ error: 'Unauthorized' }, 401)
+    if (!auth.user) {
+      return json({ error: 'Unauthorized' }, 401)
+    }
 
     const { plan } = await req.json()
-    if (!plan || !(plan in PLAN_CONFIG)) return json({ error: 'Invalid plan' }, 400)
+    if (!plan || !(plan in PLAN_CONFIG)) {
+      return json({ error: 'Invalid plan' }, 400)
+    }
 
-    const siteUrl = Deno.env.get('SITE_URL') ?? 'http://localhost:5173'
+    const siteUrl = Deno.env.get('SITE_URL') ?? ''
     const merchantId = Deno.env.get('PAYFAST_MERCHANT_ID') ?? ''
     const merchantKey = Deno.env.get('PAYFAST_MERCHANT_KEY') ?? ''
     const passphrase = Deno.env.get('PAYFAST_PASSPHRASE') ?? ''
-    const paymentUrl = Deno.env.get('PAYFAST_PAYMENT_URL') ?? 'https://sandbox.payfast.co.za/eng/process'
+    const paymentUrl = Deno.env.get('PAYFAST_PAYMENT_URL') ?? ''
+
+    if (!merchantId) return json({ error: 'PAYFAST_MERCHANT_ID missing' }, 500)
+    if (!merchantKey) return json({ error: 'PAYFAST_MERCHANT_KEY missing' }, 500)
+    if (!paymentUrl) return json({ error: 'PAYFAST_PAYMENT_URL missing' }, 500)
+    if (!siteUrl) return json({ error: 'SITE_URL missing' }, 500)
 
     const chosenPlan = PLAN_CONFIG[plan as keyof typeof PLAN_CONFIG]
+
     const formFields: Record<string, string> = {
       merchant_id: merchantId,
       merchant_key: merchantKey,
@@ -49,10 +68,10 @@ serve(async (req) => {
     }
 
     if (passphrase) {
-      formFields.signature = await makeSignature(formFields, passphrase)
+      formFields.signature = makeSignature(formFields, passphrase)
     }
 
-    const { error } = await supabase.from('subscriptions').insert({
+    const { error: insertError } = await supabase.from('subscriptions').insert({
       user_id: auth.user.id,
       plan,
       status: 'pending',
@@ -60,22 +79,49 @@ serve(async (req) => {
       amount: Number(chosenPlan.amount),
     })
 
-    if (error) throw error
-    return json({ paymentUrl, formFields })
+    if (insertError) {
+      return json(
+        {
+          error: insertError.message,
+          details: insertError.details,
+          hint: insertError.hint,
+          code: insertError.code,
+        },
+        500,
+      )
+    }
+
+    return json({
+      paymentUrl,
+      formFields,
+    })
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : 'Unexpected error' }, 500)
+    return json(
+      {
+        error: error instanceof Error ? error.message : 'Unexpected error',
+      },
+      500,
+    )
   }
 })
 
-async function makeSignature(fields: Record<string, string>, passphrase: string) {
-  const params = Object.entries(fields)
-    .filter(([, value]) => value !== '')
-    .sort(([a], [b]) => a.localeCompare(b))
-    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value).replace(/%20/g, '+')}`)
-    .join('&') + `&passphrase=${encodeURIComponent(passphrase).replace(/%20/g, '+')}`
+function payfastEncode(value: string) {
+  return encodeURIComponent(value)
+    .replace(/%20/g, '+')
+    .replace(/%[0-9a-f]{2}/g, (match) => match.toUpperCase())
+}
 
-  const buffer = await crypto.subtle.digest('MD5', new TextEncoder().encode(params))
-  return [...new Uint8Array(buffer)].map((b) => b.toString(16).padStart(2, '0')).join('')
+function makeSignature(fields: Record<string, string>, passphrase: string) {
+  const paramString = Object.entries(fields)
+    .filter(([, value]) => value !== '' && value !== undefined && value !== null)
+    .map(([key, value]) => `${key}=${payfastEncode(String(value).trim())}`)
+    .join('&')
+
+  const signingString = passphrase
+    ? `${paramString}&passphrase=${payfastEncode(passphrase.trim())}`
+    : paramString
+
+  return md5(signingString).toLowerCase()
 }
 
 function json(payload: unknown, status = 200) {
