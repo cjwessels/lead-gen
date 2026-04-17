@@ -20,6 +20,13 @@ export interface Lead {
   created_at?: string
 }
 
+export interface LeadNote {
+  id: string
+  lead_id: string
+  note_text: string
+  created_at: string
+}
+
 export interface SearchResponse {
   places: Array<{
     id?: string
@@ -83,9 +90,32 @@ export interface TenderSearchResponse {
   source: 'multi_source'
 }
 
-export interface Tender extends TenderSearchResult {
+export interface Tender {
   id: string
   user_id?: string
+  source_id: string
+  source_type: TenderSourceType
+  source_label: string
+  title: string
+  summary: string
+  publisher: string
+  province?: string
+  location_text?: string
+  is_national?: boolean
+  start_date?: string
+  end_date?: string
+  qualification_notes?: string
+  source_url?: string
+  score: number
+  keywords: string[]
+  focus_tags: string[]
   status: TenderStatus
   created_at?: string
+}
+
+export interface TenderNote {
+  id: string
+  tender_id: string
+  note_text: string
+  created_at: string
 }

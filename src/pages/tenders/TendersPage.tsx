@@ -2,50 +2,17 @@ import { useEffect, useMemo, useState } from 'react'
 import { fetchProfile } from '../../services/profile.service'
 import { fetchSavedTenders, saveTender, searchTenders, updateTenderStatus } from '../../services/tenders.service'
 import { AdvancedSearchBuilder } from '../../components/search/AdvancedSearchBuilder'
+import { TenderDetailModal } from '../../components/tenders/TenderDetailModal'
 import type { Profile, Tender, TenderSearchResult, TenderStatus, TenderSourceType } from '../../types'
 
 const statuses: TenderStatus[] = ['identified', 'reviewing', 'qualifying', 'bid-prep', 'submitted', 'won', 'lost']
-const smartSearches = [
-  'managed services',
-  'office automation',
-  'network management',
-  'IT support',
-  'document management',
-  'cybersecurity',
-]
+const smartSearches = ['managed services', 'office automation', 'network management', 'IT support', 'document management', 'cybersecurity']
 const ALL_PROVINCES = 'All provinces'
 const ALL_SOURCES = 'All sources'
 const PAGE_SIZE = 20
-const PROVINCE_SUGGESTIONS = [
-  'Western Cape',
-  'Gauteng',
-  'KwaZulu-Natal',
-  'Eastern Cape',
-  'Free State',
-  'Limpopo',
-  'Mpumalanga',
-  'North West',
-  'Northern Cape',
-]
-
-const CITY_SUGGESTIONS = [
-  'Cape Town',
-  'Johannesburg',
-  'Durban',
-  'Pretoria',
-  'Port Elizabeth',
-  'Gqeberha',
-  'Bloemfontein',
-]
-
-const TENDER_KEYWORDS = [
-  'managed services',
-  'office automation',
-  'network management',
-  'IT support',
-  'document management',
-  'cybersecurity',
-]
+const PROVINCE_SUGGESTIONS = ['Western Cape', 'Gauteng', 'KwaZulu-Natal', 'Eastern Cape', 'Free State', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape']
+const CITY_SUGGESTIONS = ['Cape Town', 'Johannesburg', 'Durban', 'Pretoria', 'Port Elizabeth', 'Gqeberha', 'Bloemfontein']
+const TENDER_KEYWORDS = ['managed services', 'office automation', 'network management', 'IT support', 'document management', 'cybersecurity']
 
 const TENDER_FIELDS = [
   { key: 'province', label: 'Province', placeholder: 'Western Cape', suggestions: PROVINCE_SUGGESTIONS },
@@ -107,6 +74,8 @@ export function TendersPage() {
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(false)
   const [total, setTotal] = useState<number | undefined>(undefined)
+  const [pipelineSearch, setPipelineSearch] = useState('')
+  const [selectedTender, setSelectedTender] = useState<Tender | null>(null)
 
   useEffect(() => {
     void fetchProfile().then(setProfile).catch(() => setProfile(null))
@@ -149,6 +118,7 @@ export function TendersPage() {
     try {
       await updateTenderStatus(id, status)
       setSavedTenders((current) => current.map((item) => (item.id === id ? { ...item, status } : item)))
+      setSelectedTender((current) => (current && current.id === id ? { ...current, status } : current))
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not update tender')
     }
@@ -185,9 +155,22 @@ export function TendersPage() {
     })
   }, [openOnly, results, selectedProvince, selectedSource])
 
+  const filteredPipelineTenders = useMemo(() => {
+    const term = pipelineSearch.trim().toLowerCase()
+    return savedTenders.filter((tender) => {
+      if (selectedSource !== ALL_SOURCES && tender.source_type !== selectedSource) return false
+      if (!term) return true
+      const haystack = [tender.title, tender.publisher, tender.province, tender.location_text, tender.summary, ...tender.focus_tags]
+        .filter(Boolean)
+        .join(' ')
+        .toLowerCase()
+      return haystack.includes(term)
+    })
+  }, [pipelineSearch, savedTenders, selectedSource])
+
   const grouped = useMemo(
-    () => Object.fromEntries(statuses.map((status) => [status, savedTenders.filter((tender) => tender.status === status)])),
-    [savedTenders],
+    () => Object.fromEntries(statuses.map((status) => [status, filteredPipelineTenders.filter((tender) => tender.status === status)])),
+    [filteredPipelineTenders],
   )
 
   return (
@@ -395,9 +378,7 @@ export function TendersPage() {
             })
           ) : (
             <div className="card p-6 text-slate-400">
-              {isPro
-                ? 'Search results will appear here. Use a service phrase such as managed services or office automation.'
-                : 'Upgrade to Pro to unlock active tender search and tender pipeline management.'}
+              {isPro ? 'Search results will appear here. Use a service phrase such as managed services or office automation.' : 'Upgrade to Pro to unlock active tender search and tender pipeline management.'}
             </div>
           )}
 
@@ -427,14 +408,30 @@ export function TendersPage() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-xl font-semibold text-white">Tender pipeline</h2>
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold text-white">Tender pipeline</h2>
+              <p className="text-sm text-slate-400">Click a tender card to inspect the full record and add dated notes.</p>
+            </div>
+            <input
+              className="input lg:min-w-[280px]"
+              value={pipelineSearch}
+              onChange={(event) => setPipelineSearch(event.target.value)}
+              placeholder="Quick search saved tenders..."
+            />
+          </div>
+
           {statuses.map((status) => (
             <div key={status} className="card p-4">
               <div className="mb-3 text-sm font-medium uppercase tracking-wide text-sky-300">{status}</div>
               <div className="space-y-3">
                 {(grouped[status] || []).length ? (
                   grouped[status].map((tender) => (
-                    <article key={tender.id} className="rounded-2xl border border-white/10 bg-white/5 p-4">
+                    <article
+                      key={tender.id}
+                      className="cursor-pointer rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-sky-400/30 hover:bg-white/[0.07]"
+                      onClick={() => setSelectedTender(tender)}
+                    >
                       <div className="font-medium text-white">{tender.title}</div>
                       <div className="mt-1 text-xs text-slate-400">{tender.publisher}</div>
                       <div className="mt-2 flex flex-wrap gap-2">
@@ -447,26 +444,25 @@ export function TendersPage() {
                       <select
                         className="input mt-3 w-full"
                         value={tender.status}
+                        onClick={(event) => event.stopPropagation()}
                         onChange={(event) => void onStatusChange(tender.id, event.target.value as TenderStatus)}
                       >
                         {statuses.map((option) => (
-                          <option key={option} value={option}>
-                            {option}
-                          </option>
+                          <option key={option} value={option}>{option}</option>
                         ))}
                       </select>
                     </article>
                   ))
                 ) : (
-                  <div className="rounded-2xl border border-dashed border-white/10 p-4 text-xs text-slate-500">
-                    No tenders
-                  </div>
+                  <div className="rounded-2xl border border-dashed border-white/10 p-4 text-xs text-slate-500">No tenders</div>
                 )}
               </div>
             </div>
           ))}
         </section>
       </div>
+
+      <TenderDetailModal tender={selectedTender} open={!!selectedTender} onClose={() => setSelectedTender(null)} />
     </div>
   )
 }
