@@ -12,6 +12,7 @@ const links = [
   { to: '/app/pipeline', label: 'Pipeline' },
   { to: '/app/outreach', label: 'Outreach' },
   { to: '/app/tenders', label: 'Tenders' },
+  { to: '/app/help', label: 'Help & Training' },
   { to: '/app/billing', label: 'Billing' },
 ]
 

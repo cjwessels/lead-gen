@@ -12,6 +12,7 @@ import { PipelinePage } from './pages/pipeline/PipelinePage'
 import { OutreachPage } from './pages/outreach/OutreachPage'
 import { BillingPage } from './pages/billing/BillingPage'
 import { TendersPage } from './pages/tenders/TendersPage'
+import HelpPage from "./pages/help/HelpPage";
 
 export default function App() {
   return (
@@ -40,6 +41,7 @@ export default function App() {
                 <Route path="pipeline" element={<PipelinePage />} />
                 <Route path="outreach" element={<OutreachPage />} />
                 <Route path="tenders" element={<TendersPage />} />
+                <Route path="help" element={<HelpPage />} />
                 <Route path="billing" element={<BillingPage />} />
                 <Route path="*" element={<Navigate to="dashboard" replace />} />
               </Routes>
