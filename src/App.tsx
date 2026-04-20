@@ -12,7 +12,7 @@ import { PipelinePage } from './pages/pipeline/PipelinePage'
 import { OutreachPage } from './pages/outreach/OutreachPage'
 import { BillingPage } from './pages/billing/BillingPage'
 import { TendersPage } from './pages/tenders/TendersPage'
-import HelpPage from "./pages/help/HelpPage";
+import HelpPage from "./pages/help/HelpPage"
 
 export default function App() {
   return (

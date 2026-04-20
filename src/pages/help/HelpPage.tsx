@@ -1,5 +1,8 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { helpImages } from './helpImages'
+
+console.log('Loaded help images:', helpImages) // Debug log to verify image paths
 
 type StepItem = {
   title: string
@@ -217,7 +220,8 @@ const lessons: Lesson[] = [
   },
 ]
 
-function buildStepImage(sectionTitle: string, stepTitle: string, imageLabel: string) {
+
+function buildFallbackSVG(sectionTitle: string, stepTitle: string, imageLabel: string) {
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700">
       <defs>
@@ -258,6 +262,21 @@ function buildStepImage(sectionTitle: string, stepTitle: string, imageLabel: str
   `
 
   return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`
+}
+
+export function buildStepImage(
+  lessonTitle: string,
+  stepTitle: string,
+  fallbackLabel?: string
+) {
+  const lesson = helpImages[lessonTitle];
+
+  if (lesson && lesson[stepTitle]) {
+    return lesson[stepTitle]; // ✅ real image
+  }
+
+  // fallback to your existing SVG generator
+  return buildFallbackSVG(lessonTitle, fallbackLabel || stepTitle, fallbackLabel || 'Image not found');
 }
 
 export default function HelpPage() {
