@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { helpImages } from './helpImages'
 
@@ -221,6 +221,46 @@ const lessons: Lesson[] = [
 ]
 
 
+
+const HELP_PROGRESS_STORAGE_KEY = 'leadgen_help_progress_v1'
+
+type HelpProgress = {
+  activeLessonId: string
+  completedLessonIds: string[]
+}
+
+function loadHelpProgress(): HelpProgress {
+  try {
+    const raw = window.localStorage.getItem(HELP_PROGRESS_STORAGE_KEY)
+
+    if (!raw) {
+      return {
+        activeLessonId: lessons[0].id,
+        completedLessonIds: [],
+      }
+    }
+
+    const parsed = JSON.parse(raw) as Partial<HelpProgress>
+    const validLessonIds = new Set(lessons.map((lesson) => lesson.id))
+    const activeLessonId = typeof parsed.activeLessonId === 'string' && validLessonIds.has(parsed.activeLessonId)
+      ? parsed.activeLessonId
+      : lessons[0].id
+    const completedLessonIds = Array.isArray(parsed.completedLessonIds)
+      ? parsed.completedLessonIds.filter((id): id is string => typeof id === 'string' && validLessonIds.has(id))
+      : []
+
+    return {
+      activeLessonId,
+      completedLessonIds,
+    }
+  } catch {
+    return {
+      activeLessonId: lessons[0].id,
+      completedLessonIds: [],
+    }
+  }
+}
+
 function buildFallbackSVG(sectionTitle: string, stepTitle: string, imageLabel: string) {
   const svg = `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 700">
@@ -280,18 +320,34 @@ export function buildStepImage(
 }
 
 export default function HelpPage() {
-  const [activeLessonId, setActiveLessonId] = useState(lessons[0].id)
-  const [completed, setCompleted] = useState<string[]>([])
+  const [helpProgress, setHelpProgress] = useState<HelpProgress>(() => loadHelpProgress())
+  const { activeLessonId, completedLessonIds } = helpProgress
+
+  useEffect(() => {
+    window.localStorage.setItem(HELP_PROGRESS_STORAGE_KEY, JSON.stringify(helpProgress))
+  }, [helpProgress])
 
   const activeLesson = useMemo(
     () => lessons.find((lesson) => lesson.id === activeLessonId) ?? lessons[0],
     [activeLessonId],
   )
 
-  const progress = Math.round((completed.length / lessons.length) * 100)
+  const progress = Math.round((completedLessonIds.length / lessons.length) * 100)
+
+  function openLesson(id: string) {
+    setHelpProgress((current) => ({
+      ...current,
+      activeLessonId: id,
+    }))
+  }
 
   function toggleComplete(id: string) {
-    setCompleted((current) => (current.includes(id) ? current.filter((item) => item !== id) : [...current, id]))
+    setHelpProgress((current) => ({
+      ...current,
+      completedLessonIds: current.completedLessonIds.includes(id)
+        ? current.completedLessonIds.filter((item) => item !== id)
+        : [...current.completedLessonIds, id],
+    }))
   }
 
   return (
@@ -316,7 +372,7 @@ export default function HelpPage() {
             <div className="text-sm font-medium text-sky-100">Training progress</div>
             <div className="mt-3 text-4xl font-semibold text-white">{progress}%</div>
             <div className="mt-2 text-sm text-slate-300">
-              {completed.length} of {lessons.length} sections marked complete
+              {completedLessonIds.length} of {lessons.length} sections marked complete
             </div>
             <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-900/80">
               <div className="h-full rounded-full bg-sky-400 transition-all" style={{ width: `${progress}%` }} />
@@ -331,12 +387,12 @@ export default function HelpPage() {
           <div className="space-y-2">
             {lessons.map((lesson, index) => {
               const isActive = lesson.id === activeLesson.id
-              const isDone = completed.includes(lesson.id)
+              const isDone = completedLessonIds.includes(lesson.id)
               return (
                 <button
                   key={lesson.id}
                   type="button"
-                  onClick={() => setActiveLessonId(lesson.id)}
+                  onClick={() => openLesson(lesson.id)}
                   className={`w-full rounded-2xl border px-4 py-4 text-left transition ${
                     isActive
                       ? 'border-sky-400/40 bg-sky-400/10'
@@ -378,7 +434,7 @@ export default function HelpPage() {
                   onClick={() => toggleComplete(activeLesson.id)}
                   className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white hover:bg-white/10"
                 >
-                  {completed.includes(activeLesson.id) ? 'Mark incomplete' : 'Mark complete'}
+                  {completedLessonIds.includes(activeLesson.id) ? 'Mark incomplete' : 'Mark complete'}
                 </button>
               </div>
             </div>
