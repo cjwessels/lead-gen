@@ -43,7 +43,7 @@ export function PipelinePage() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-white">Pipeline</h1>
+          <h1 className="text-2xl font-semibold text-white">Leads Pipeline</h1>
           <p className="text-slate-400">Filter, search, and click a card to inspect full lead details and notes.</p>
         </div>
 

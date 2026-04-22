@@ -9,9 +9,11 @@ const links = [
   { to: '/app/dashboard', label: 'Dashboard' },
   { to: '/app/search', label: 'Lead Search' },
   { to: '/app/leads', label: 'Saved Leads' },
-  { to: '/app/pipeline', label: 'Pipeline' },
+  { to: '/app/pipeline', label: 'Leads Pipeline' },
   { to: '/app/outreach', label: 'Outreach' },
   { to: '/app/tenders', label: 'Tenders' },
+  { to: '/app/saved-tenders', label: 'Saved Tenders' },
+  { to: '/app/tenders-pipeline', label: 'Tenders Pipeline' },
   { to: '/app/help', label: 'Help & Training' },
   { to: '/app/billing', label: 'Billing' },
 ]
