@@ -16,6 +16,7 @@ function mapRowToLead(row: any): Lead {
     status: row.status,
     painPoints: row.pain_points ?? [],
     created_at: row.created_at,
+    archived_at: row.archived_at ?? null,
   }
 }
 
@@ -27,9 +28,11 @@ function normalizePhone(value?: string) {
   return (value || '').replace(/\D/g, '')
 }
 
-export async function fetchSavedLeads(): Promise<Lead[]> {
+export async function fetchSavedLeads(archived = false): Promise<Lead[]> {
   if (!supabase) throw new Error('Supabase is not configured')
-  const { data, error } = await supabase.from('leads').select('*').order('created_at', { ascending: false })
+  let query = supabase.from('leads').select('*')
+  query = archived ? query.not('archived_at', 'is', null) : query.is('archived_at', null)
+  const { data, error } = await query.order('created_at', { ascending: false })
   if (error) throw error
   return (data || []).map(mapRowToLead)
 }
@@ -75,6 +78,7 @@ export async function saveLead(lead: Lead): Promise<Lead> {
         review_count: lead.reviewCount || existing.review_count || 0,
         score: Math.max(existing.score || 0, lead.score),
         pain_points: mergedPainPoints,
+        archived_at: null,
       })
       .eq('id', existing.id)
       .select()
@@ -111,5 +115,23 @@ export async function saveLead(lead: Lead): Promise<Lead> {
 export async function updateLeadStatus(id: string, status: LeadStatus): Promise<void> {
   if (!supabase) throw new Error('Supabase is not configured')
   const { error } = await supabase.from('leads').update({ status }).eq('id', id)
+  if (error) throw error
+}
+
+export async function archiveLead(id: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase is not configured')
+  const { error } = await supabase.from('leads').update({ archived_at: new Date().toISOString() }).eq('id', id)
+  if (error) throw error
+}
+
+export async function reactivateLead(id: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase is not configured')
+  const { error } = await supabase.from('leads').update({ archived_at: null }).eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteLead(id: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase is not configured')
+  const { error } = await supabase.from('leads').delete().eq('id', id)
   if (error) throw error
 }

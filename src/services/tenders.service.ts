@@ -27,6 +27,7 @@ function mapRowToTender(row: any): Tender {
     focus_tags: row.focus_tags ?? [],
     status: row.status,
     created_at: row.created_at,
+    archived_at: row.archived_at ?? null,
   }
 }
 
@@ -60,9 +61,11 @@ export async function searchTenders(query: string, page = 1, pageSize = 20): Pro
   }
 }
 
-export async function fetchSavedTenders(): Promise<Tender[]> {
+export async function fetchSavedTenders(archived = false): Promise<Tender[]> {
   if (!supabase) throw new Error('Supabase is not configured')
-  const { data, error } = await supabase.from('tenders').select('*').order('created_at', { ascending: false })
+  let query = supabase.from('tenders').select('*')
+  query = archived ? query.not('archived_at', 'is', null) : query.is('archived_at', null)
+  const { data, error } = await query.order('created_at', { ascending: false })
   if (error) throw error
   return (data || []).map(mapRowToTender)
 }
@@ -107,6 +110,7 @@ export async function saveTender(tender: TenderSearchResult): Promise<Tender> {
         score: tender.score,
         keywords: tender.keywords,
         focus_tags: tender.focus_tags,
+        archived_at: null,
       })
       .eq('id', existing.id)
       .select()
@@ -152,5 +156,23 @@ export async function saveTender(tender: TenderSearchResult): Promise<Tender> {
 export async function updateTenderStatus(id: string, status: TenderStatus): Promise<void> {
   if (!supabase) throw new Error('Supabase is not configured')
   const { error } = await supabase.from('tenders').update({ status }).eq('id', id)
+  if (error) throw error
+}
+
+export async function archiveTender(id: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase is not configured')
+  const { error } = await supabase.from('tenders').update({ archived_at: new Date().toISOString() }).eq('id', id)
+  if (error) throw error
+}
+
+export async function reactivateTender(id: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase is not configured')
+  const { error } = await supabase.from('tenders').update({ archived_at: null }).eq('id', id)
+  if (error) throw error
+}
+
+export async function deleteTender(id: string): Promise<void> {
+  if (!supabase) throw new Error('Supabase is not configured')
+  const { error } = await supabase.from('tenders').delete().eq('id', id)
   if (error) throw error
 }

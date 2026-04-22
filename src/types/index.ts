@@ -18,6 +18,7 @@ export interface Lead {
   status: LeadStatus
   painPoints: string[]
   created_at?: string
+  archived_at?: string | null
 }
 
 export interface LeadNote {
@@ -95,7 +96,7 @@ export interface TenderSearchResponse {
   results: TenderSearchResult[]
   page: number
   pageSize: number
-  hasMore: boolean
+  hasMore: number | boolean
   total?: number
   source: 'multi_source'
 }
@@ -125,6 +126,7 @@ export interface Tender {
   focus_tags: string[]
   status: TenderStatus
   created_at?: string
+  archived_at?: string | null
 }
 
 export interface TenderNote {

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchProfile } from '../../services/profile.service'
-import { fetchSavedTenders, saveTender, searchTenders, updateTenderStatus } from '../../services/tenders.service'
+import { archiveTender, deleteTender, fetchSavedTenders, reactivateTender, saveTender, searchTenders, updateTenderStatus } from '../../services/tenders.service'
 import { AdvancedSearchBuilder } from '../../components/search/AdvancedSearchBuilder'
 import { TenderDetailModal } from '../../components/tenders/TenderDetailModal'
 import type { Profile, Tender, TenderSearchResult, TenderStatus, TenderSourceType } from '../../types'
@@ -13,6 +13,7 @@ const PAGE_SIZE = 20
 const PROVINCE_SUGGESTIONS = ['Western Cape', 'Gauteng', 'KwaZulu-Natal', 'Eastern Cape', 'Free State', 'Limpopo', 'Mpumalanga', 'North West', 'Northern Cape']
 const CITY_SUGGESTIONS = ['Cape Town', 'Johannesburg', 'Durban', 'Pretoria', 'Port Elizabeth', 'Gqeberha', 'Bloemfontein']
 const TENDER_KEYWORDS = ['managed services', 'office automation', 'network management', 'IT support', 'document management', 'cybersecurity']
+type PipelineView = 'saved' | 'archive'
 
 const TENDER_FIELDS = [
   { key: 'province', label: 'Province', placeholder: 'Western Cape', suggestions: PROVINCE_SUGGESTIONS },
@@ -66,6 +67,7 @@ export function TendersPage() {
   const [query, setQuery] = useState('managed services')
   const [results, setResults] = useState<TenderSearchResult[]>([])
   const [savedTenders, setSavedTenders] = useState<Tender[]>([])
+  const [archivedTenders, setArchivedTenders] = useState<Tender[]>([])
   const [loading, setLoading] = useState(false)
   const [message, setMessage] = useState('')
   const [selectedProvince, setSelectedProvince] = useState(ALL_PROVINCES)
@@ -76,11 +78,23 @@ export function TendersPage() {
   const [total, setTotal] = useState<number | undefined>(undefined)
   const [pipelineSearch, setPipelineSearch] = useState('')
   const [selectedTender, setSelectedTender] = useState<Tender | null>(null)
+  const [pipelineView, setPipelineView] = useState<PipelineView>('saved')
 
   useEffect(() => {
     void fetchProfile().then(setProfile).catch(() => setProfile(null))
-    void fetchSavedTenders().then(setSavedTenders).catch(() => setSavedTenders([]))
+    void loadPipeline()
   }, [])
+
+  async function loadPipeline() {
+    try {
+      const [saved, archived] = await Promise.all([fetchSavedTenders(false), fetchSavedTenders(true)])
+      setSavedTenders(saved)
+      setArchivedTenders(archived)
+    } catch {
+      setSavedTenders([])
+      setArchivedTenders([])
+    }
+  }
 
   const isPro = profile?.plan === 'pro'
 
@@ -92,7 +106,7 @@ export function TendersPage() {
       const response = await searchTenders(query, targetPage, PAGE_SIZE)
       setResults(response.results)
       setPage(response.page)
-      setHasMore(response.hasMore)
+      setHasMore(Boolean(response.hasMore))
       setTotal(response.total)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Tender search failed')
@@ -104,10 +118,8 @@ export function TendersPage() {
   async function onSave(tender: TenderSearchResult) {
     try {
       const saved = await saveTender(tender)
-      setSavedTenders((current) => {
-        const exists = current.some((item) => item.id === saved.id)
-        return exists ? current : [saved, ...current]
-      })
+      setSavedTenders((current) => [saved, ...current.filter((item) => item.id !== saved.id)])
+      setArchivedTenders((current) => current.filter((item) => item.id !== saved.id))
       setMessage(`Saved tender: ${tender.title}`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not save tender')
@@ -118,9 +130,46 @@ export function TendersPage() {
     try {
       await updateTenderStatus(id, status)
       setSavedTenders((current) => current.map((item) => (item.id === id ? { ...item, status } : item)))
+      setArchivedTenders((current) => current.map((item) => (item.id === id ? { ...item, status } : item)))
       setSelectedTender((current) => (current && current.id === id ? { ...current, status } : current))
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not update tender')
+    }
+  }
+
+  async function onArchive(tender: Tender) {
+    try {
+      await archiveTender(tender.id)
+      setSavedTenders((current) => current.filter((item) => item.id !== tender.id))
+      setArchivedTenders((current) => [{ ...tender, archived_at: new Date().toISOString() }, ...current])
+      setSelectedTender((current) => (current?.id === tender.id ? null : current))
+      setMessage(`Archived tender: ${tender.title}`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not archive tender')
+    }
+  }
+
+  async function onReactivate(tender: Tender) {
+    try {
+      await reactivateTender(tender.id)
+      setArchivedTenders((current) => current.filter((item) => item.id !== tender.id))
+      setSavedTenders((current) => [{ ...tender, archived_at: null }, ...current])
+      setMessage(`Re-activated tender: ${tender.title}`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not re-activate tender')
+    }
+  }
+
+  async function onDelete(tender: Tender) {
+    if (!window.confirm(`Delete ${tender.title} permanently?`)) return
+    try {
+      await deleteTender(tender.id)
+      setSavedTenders((current) => current.filter((item) => item.id !== tender.id))
+      setArchivedTenders((current) => current.filter((item) => item.id !== tender.id))
+      setSelectedTender((current) => (current?.id === tender.id ? null : current))
+      setMessage(`Deleted tender: ${tender.title}`)
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Could not delete tender')
     }
   }
 
@@ -156,8 +205,9 @@ export function TendersPage() {
   }, [openOnly, results, selectedProvince, selectedSource])
 
   const filteredPipelineTenders = useMemo(() => {
+    const source = pipelineView === 'saved' ? savedTenders : archivedTenders
     const term = pipelineSearch.trim().toLowerCase()
-    return savedTenders.filter((tender) => {
+    return source.filter((tender) => {
       if (selectedSource !== ALL_SOURCES && tender.source_type !== selectedSource) return false
       if (!term) return true
       const haystack = [tender.title, tender.publisher, tender.province, tender.location_text, tender.summary, ...tender.focus_tags]
@@ -166,7 +216,7 @@ export function TendersPage() {
         .toLowerCase()
       return haystack.includes(term)
     })
-  }, [pipelineSearch, savedTenders, selectedSource])
+  }, [archivedTenders, pipelineSearch, pipelineView, savedTenders, selectedSource])
 
   const grouped = useMemo(
     () => Object.fromEntries(statuses.map((status) => [status, filteredPipelineTenders.filter((tender) => tender.status === status)])),
@@ -180,302 +230,65 @@ export function TendersPage() {
           <div>
             <div className="badge mb-3">Pro feature · Phase 3</div>
             <h1 className="text-2xl font-semibold text-white">Tender search and tender pipeline</h1>
-            <p className="mt-2 max-w-3xl text-slate-300">
-              Tender search now combines official public procurement data with platform/private-sector signals where available, then normalizes them into one searchable pipeline.
-            </p>
+            <p className="mt-2 max-w-3xl text-slate-300">Tender search now combines official public procurement data with platform/private-sector signals where available, then normalizes them into one searchable pipeline.</p>
           </div>
-
-          {!isPro ? (
-            <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
-              Tender search is available to Pro subscribers only. Upgrade on Billing to unlock it.
-            </div>
-          ) : null}
+          {!isPro ? <div className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">Tender search is available to Pro subscribers only. Upgrade on Billing to unlock it.</div> : null}
         </div>
 
         <div className="mt-5 flex flex-col gap-3 md:flex-row">
-          <input
-            className="input"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder='Example: province:"Western Cape" keyword:"managed services" source:government'
-            disabled={!isPro}
-          />
-          <button
-            onClick={() => void runSearch(1)}
-            disabled={!isPro}
-            className="rounded-2xl bg-sky-400 px-5 py-3 font-medium text-slate-950 hover:bg-sky-300 disabled:cursor-not-allowed disabled:opacity-40"
-          >
-            {loading ? 'Searching...' : 'Search tenders'}
-          </button>
+          <input className="input" value={query} onChange={(event) => setQuery(event.target.value)} placeholder='Example: province:"Western Cape" keyword:"managed services" source:government' disabled={!isPro} />
+          <button onClick={() => void runSearch(1)} disabled={!isPro} className="rounded-2xl bg-sky-400 px-5 py-3 font-medium text-slate-950 hover:bg-sky-300 disabled:cursor-not-allowed disabled:opacity-40">{loading ? 'Searching...' : 'Search tenders'}</button>
         </div>
 
-        <AdvancedSearchBuilder
-          query={query}
-          onApply={setQuery}
-          fields={TENDER_FIELDS as any}
-          title="Advanced search helper"
-          description="Build structured tender queries visually. Use province, city, source, keyword, and custom focus fields without remembering the syntax."
-        />
+        <AdvancedSearchBuilder query={query} onApply={setQuery} fields={TENDER_FIELDS as any} title="Advanced search helper" description="Build structured tender queries visually. Use province, city, source, keyword, and custom focus fields without remembering the syntax." />
 
-        <div className="mt-4 flex flex-wrap gap-2">
-          {smartSearches.map((value) => (
-            <button
-              key={value}
-              type="button"
-              disabled={!isPro}
-              onClick={() => setQuery(value)}
-              className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300 hover:bg-white/10 disabled:opacity-40"
-            >
-              {value}
-            </button>
-          ))}
-        </div>
+        <div className="mt-4 flex flex-wrap gap-2">{smartSearches.map((value) => <button key={value} type="button" disabled={!isPro} onClick={() => setQuery(value)} className="rounded-full border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-300 hover:bg-white/10 disabled:opacity-40">{value}</button>)}</div>
 
         <div className="mt-5 grid gap-4 lg:grid-cols-[1fr_1fr_1fr]">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="text-sm font-medium text-white">Province filter</div>
             <div className="mt-1 text-xs text-slate-400">Focus on national or regional opportunities.</div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {provinceOptions.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setSelectedProvince(option)}
-                  className={`rounded-full border px-3 py-2 text-xs transition ${
-                    selectedProvince === option
-                      ? 'border-sky-400/40 bg-sky-400/15 text-sky-100'
-                      : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
-                  }`}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
+            <div className="mt-4 flex flex-wrap gap-2">{provinceOptions.map((option) => <button key={option} type="button" onClick={() => setSelectedProvince(option)} className={`rounded-full border px-3 py-2 text-xs transition ${selectedProvince === option ? 'border-sky-400/40 bg-sky-400/15 text-sky-100' : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'}`}>{option}</button>)}</div>
           </div>
-
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="text-sm font-medium text-white">Source filter</div>
             <div className="mt-1 text-xs text-slate-400">Filter official government sources, platform aggregations, or private-sector signals.</div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {sourceOptions.map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => setSelectedSource(option)}
-                  className={`rounded-full border px-3 py-2 text-xs transition ${
-                    selectedSource === option
-                      ? 'border-sky-400/40 bg-sky-400/15 text-sky-100'
-                      : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'
-                  }`}
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
+            <div className="mt-4 flex flex-wrap gap-2">{sourceOptions.map((option) => <button key={option} type="button" onClick={() => setSelectedSource(option)} className={`rounded-full border px-3 py-2 text-xs transition ${selectedSource === option ? 'border-sky-400/40 bg-sky-400/15 text-sky-100' : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'}`}>{option}</button>)}</div>
           </div>
-
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
             <div className="text-sm font-medium text-white">Tender window focus</div>
             <div className="mt-1 text-xs text-slate-400">Hide opportunities that appear to be closed.</div>
-            <label className="mt-4 flex items-center gap-3 text-sm text-slate-200">
-              <input type="checkbox" checked={openOnly} onChange={(event) => setOpenOnly(event.target.checked)} />
-              Show open or undated tenders only
-            </label>
+            <label className="mt-4 flex items-center gap-3 text-sm text-slate-200"><input type="checkbox" checked={openOnly} onChange={(event) => setOpenOnly(event.target.checked)} />Show open or undated tenders only</label>
           </div>
         </div>
 
-        <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-400">
-          <span>Multi-source engine active</span>
-          <span>•</span>
-          <span>Page {page}</span>
-          <span>•</span>
-          <span>{typeof total === 'number' ? `${total} candidates scanned` : `${results.length} results returned`}</span>
-        </div>
-
+        <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-400"><span>Multi-source engine active</span><span>•</span><span>Page {page}</span><span>•</span><span>{typeof total === 'number' ? `${total} candidates scanned` : `${results.length} results returned`}</span></div>
         {message ? <div className="mt-4 text-sm text-slate-300">{message}</div> : null}
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[1.15fr_0.85fr]">
         <section className="space-y-4">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="text-xl font-semibold text-white">Open tender results</h2>
-            <div className="text-sm text-slate-400">{filteredResults.length} matched on this page</div>
-          </div>
-
-          {filteredResults.length ? (
-            filteredResults.map((tender) => {
-              const closeDays = daysUntil(tender.end_date)
-              const closeBadge = getClosingBadge(closeDays)
-
-              return (
-                <article key={tender.source_id} className="card p-6">
-                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-white">{tender.title}</h3>
-                      <div className="mt-1 text-sm text-slate-400">{tender.publisher || 'Official source'}</div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <div className={`badge border ${getSourceBadge(tender.source_type)}`}>{tender.source_label}</div>
-                      <div className="badge">Tender score {tender.score}</div>
-                      <div className={`badge border ${closeBadge.className}`}>{closeBadge.label}</div>
-                    </div>
-                  </div>
-
-                  <p className="mt-4 text-sm leading-6 text-slate-300">{tender.summary}</p>
-
-                  <div className="mt-4 grid gap-3 md:grid-cols-3">
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-xs uppercase tracking-wide text-slate-400">Location</div>
-                      <div className="mt-2 text-sm text-slate-200">{tender.is_national ? 'National / Countrywide' : tender.province || 'Province not extracted'}</div>
-                      <div className="mt-1 text-xs text-slate-400">{tender.location_text || 'Location details not extracted from the source data.'}</div>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-xs uppercase tracking-wide text-slate-400">Dates</div>
-                      <div className="mt-2 text-sm text-slate-200">Start: {formatDate(tender.start_date)}</div>
-                      <div className="mt-1 text-sm text-slate-200">Close: {formatDate(tender.end_date)}</div>
-                    </div>
-
-                    <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
-                      <div className="text-xs uppercase tracking-wide text-slate-400">Qualification / notes</div>
-                      <div className="mt-2 text-sm text-slate-200">
-                        {tender.qualification_notes || 'Qualification details are not explicit in the current record.'}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    {tender.focus_tags.map((tag) => (
-                      <span key={tag} className="badge border border-sky-400/25 bg-sky-400/10 text-sky-100">
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-
-                  <div className="mt-5 flex flex-wrap gap-3">
-                    <button
-                      type="button"
-                      onClick={() => void onSave(tender)}
-                      disabled={!isPro}
-                      className="rounded-2xl bg-white/10 px-4 py-3 text-sm text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40"
-                    >
-                      Save to tender pipeline
-                    </button>
-
-                    {tender.source_url ? (
-                      <a
-                        href={tender.source_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10"
-                      >
-                        Open source
-                      </a>
-                    ) : null}
-                  </div>
-                </article>
-              )
-            })
-          ) : (
-            <div className="card p-6 text-slate-400">
-              {isPro ? 'Search results will appear here. Use a service phrase such as managed services or office automation.' : 'Upgrade to Pro to unlock active tender search and tender pipeline management.'}
-            </div>
-          )}
-
-          {isPro && results.length ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-4">
-              <div className="text-sm text-slate-400">Multi-source page {page}</div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  disabled={page === 1 || loading}
-                  onClick={() => void runSearch(page - 1)}
-                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  disabled={!hasMore || loading}
-                  onClick={() => void runSearch(page + 1)}
-                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-40"
-                >
-                  Next
-                </button>
-              </div>
-            </div>
-          ) : null}
+          <div className="flex items-center justify-between gap-4"><h2 className="text-xl font-semibold text-white">Open tender results</h2><div className="text-sm text-slate-400">{filteredResults.length} matched on this page</div></div>
+          {filteredResults.length ? filteredResults.map((tender) => {
+            const closeDays = daysUntil(tender.end_date)
+            const closeBadge = getClosingBadge(closeDays)
+            return <article key={tender.source_id} className="card p-6">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div><h3 className="text-lg font-semibold text-white">{tender.title}</h3><div className="mt-1 text-sm text-slate-400">{tender.publisher || 'Official source'}</div></div><div className="flex flex-wrap gap-2"><div className={`badge border ${getSourceBadge(tender.source_type)}`}>{tender.source_label}</div><div className="badge">Tender score {tender.score}</div><div className={`badge border ${closeBadge.className}`}>{closeBadge.label}</div></div></div>
+              <p className="mt-4 text-sm leading-6 text-slate-300">{tender.summary}</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-3"><div className="rounded-2xl border border-white/10 bg-white/5 p-4"><div className="text-xs uppercase tracking-wide text-slate-400">Location</div><div className="mt-2 text-sm text-slate-200">{tender.is_national ? 'National / Countrywide' : tender.province || 'Province not extracted'}</div><div className="mt-1 text-xs text-slate-400">{tender.location_text || 'Location details not extracted from the source data.'}</div></div><div className="rounded-2xl border border-white/10 bg-white/5 p-4"><div className="text-xs uppercase tracking-wide text-slate-400">Dates</div><div className="mt-2 text-sm text-slate-200">Start: {formatDate(tender.start_date)}</div><div className="mt-1 text-sm text-slate-200">Close: {formatDate(tender.end_date)}</div></div><div className="rounded-2xl border border-white/10 bg-white/5 p-4"><div className="text-xs uppercase tracking-wide text-slate-400">Qualification / notes</div><div className="mt-2 text-sm text-slate-200">{tender.qualification_notes || 'Qualification details are not explicit in the current record.'}</div></div></div>
+              <div className="mt-4 flex flex-wrap gap-2">{tender.focus_tags.map((tag) => <span key={tag} className="badge border border-sky-400/25 bg-sky-400/10 text-sky-100">{tag}</span>)}</div>
+              <div className="mt-5 flex flex-wrap gap-3"><button type="button" onClick={() => void onSave(tender)} disabled={!isPro} className="rounded-2xl bg-white/10 px-4 py-3 text-sm text-white hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-40">Save to tender pipeline</button>{tender.source_url ? <a href={tender.source_url} target="_blank" rel="noreferrer" className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10">Open source</a> : null}</div>
+            </article>
+          }) : <div className="card p-6 text-slate-400">{isPro ? 'Search results will appear here. Use a service phrase such as managed services or office automation.' : 'Upgrade to Pro to unlock active tender search and tender pipeline management.'}</div>}
+          {isPro && results.length ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-4"><div className="text-sm text-slate-400">Multi-source page {page}</div><div className="flex items-center gap-2"><button type="button" disabled={page === 1 || loading} onClick={() => void runSearch(page - 1)} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-40">Previous</button><button type="button" disabled={!hasMore || loading} onClick={() => void runSearch(page + 1)} className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-white disabled:cursor-not-allowed disabled:opacity-40">Next</button></div></div> : null}
         </section>
 
         <section className="space-y-4">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold text-white">Tender pipeline</h2>
-              <p className="text-sm text-slate-400">Click a tender card to inspect the full record and add dated notes.</p>
-            </div>
-            <input
-              className="input lg:min-w-[280px]"
-              value={pipelineSearch}
-              onChange={(event) => setPipelineSearch(event.target.value)}
-              placeholder="Quick search saved tenders..."
-            />
-          </div>
-
-          {statuses.map((status) => (
-            <div key={status} className="card p-4">
-              <div className="mb-3 text-sm font-medium uppercase tracking-wide text-sky-300">{status}</div>
-              <div className="space-y-3">
-                {(grouped[status] || []).length ? (
-                  grouped[status].map((tender) => (
-                    <article
-                      key={tender.id}
-                      className="cursor-pointer rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-sky-400/30 hover:bg-white/[0.07]"
-                      onClick={() => setSelectedTender(tender)}
-                    >
-                      <div className="font-medium text-white">{tender.title}</div>
-                      <div className="mt-1 text-xs text-slate-400">{tender.publisher}</div>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        <span className={`badge border ${getSourceBadge(tender.source_type)}`}>{tender.source_label}</span>
-                      </div>
-                      <div className="mt-2 text-xs text-slate-300">
-                        {tender.is_national ? 'National / Countrywide' : tender.province || 'Province not extracted'}
-                      </div>
-                      <div className="mt-1 text-xs text-slate-300">Close: {formatDate(tender.end_date)}</div>
-                      {tender.contact_person || tender.contact_email || tender.contact_phone ? (
-                        <div className="mt-3 rounded-2xl border border-white/10 bg-black/10 p-3 text-xs text-slate-300">
-                          <div className="mb-1 text-[11px] uppercase tracking-wide text-slate-400">Contact details</div>
-                          {tender.contact_person ? <div>Person: {tender.contact_person}</div> : null}
-                          {tender.contact_email ? <div>Email: {tender.contact_email}</div> : null}
-                          {tender.contact_phone ? <div>Phone: {tender.contact_phone}</div> : null}
-                        </div>
-                      ) : null}
-                      {tender.source_material ? (
-                        <div className="mt-3 rounded-2xl border border-white/10 bg-black/10 p-3 text-xs text-slate-300">
-                          <div className="mb-1 text-[11px] uppercase tracking-wide text-slate-400">Tender source material</div>
-                          <div className="line-clamp-4 leading-5">{tender.source_material}</div>
-                        </div>
-                      ) : null}
-                      <select
-                        className="input mt-3 w-full"
-                        value={tender.status}
-                        onClick={(event) => event.stopPropagation()}
-                        onChange={(event) => void onStatusChange(tender.id, event.target.value as TenderStatus)}
-                      >
-                        {statuses.map((option) => (
-                          <option key={option} value={option}>{option}</option>
-                        ))}
-                      </select>
-                    </article>
-                  ))
-                ) : (
-                  <div className="rounded-2xl border border-dashed border-white/10 p-4 text-xs text-slate-500">No tenders</div>
-                )}
-              </div>
-            </div>
-          ))}
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between"><div><h2 className="text-xl font-semibold text-white">Tender pipeline</h2><p className="text-sm text-slate-400">Click a tender card to inspect the full record and add dated notes.</p></div><input className="input lg:min-w-[280px]" value={pipelineSearch} onChange={(event) => setPipelineSearch(event.target.value)} placeholder={pipelineView === 'saved' ? 'Quick search saved tenders...' : 'Quick search archived tenders...'} /></div>
+          <div className="flex flex-wrap gap-2"><button type="button" onClick={() => setPipelineView('saved')} className={`rounded-full border px-4 py-2 text-sm ${pipelineView === 'saved' ? 'border-sky-400/40 bg-sky-400/15 text-sky-100' : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'}`}>Saved ({savedTenders.length})</button><button type="button" onClick={() => setPipelineView('archive')} className={`rounded-full border px-4 py-2 text-sm ${pipelineView === 'archive' ? 'border-amber-400/40 bg-amber-400/15 text-amber-100' : 'border-white/10 bg-white/5 text-slate-300 hover:bg-white/10'}`}>Archive ({archivedTenders.length})</button></div>
+          {pipelineView === 'saved' ? statuses.map((status) => <div key={status} className="card p-4"><div className="mb-3 text-sm font-medium uppercase tracking-wide text-sky-300">{status}</div><div className="space-y-3">{(grouped[status] || []).length ? grouped[status].map((tender) => <article key={tender.id} className="cursor-pointer rounded-2xl border border-white/10 bg-white/5 p-4 transition hover:border-sky-400/30 hover:bg-white/[0.07]" onClick={() => setSelectedTender(tender)}><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-medium text-white">{tender.title}</div><div className="mt-1 text-xs text-slate-400">{tender.publisher}</div></div><button type="button" className="rounded-lg border border-amber-400/20 bg-amber-400/10 px-3 py-2 text-xs text-amber-100 hover:bg-amber-400/15" onClick={(event) => { event.stopPropagation(); void onArchive(tender) }}>Archive</button></div><div className="mt-2 flex flex-wrap gap-2"><span className={`badge border ${getSourceBadge(tender.source_type)}`}>{tender.source_label}</span></div><div className="mt-2 text-xs text-slate-300">{tender.is_national ? 'National / Countrywide' : tender.province || 'Province not extracted'}</div><div className="mt-1 text-xs text-slate-300">Close: {formatDate(tender.end_date)}</div>{tender.contact_person || tender.contact_email || tender.contact_phone ? <div className="mt-3 rounded-2xl border border-white/10 bg-black/10 p-3 text-xs text-slate-300"><div className="mb-1 text-[11px] uppercase tracking-wide text-slate-400">Contact details</div>{tender.contact_person ? <div>Person: {tender.contact_person}</div> : null}{tender.contact_email ? <div>Email: {tender.contact_email}</div> : null}{tender.contact_phone ? <div>Phone: {tender.contact_phone}</div> : null}</div> : null}{tender.source_material ? <div className="mt-3 rounded-2xl border border-white/10 bg-black/10 p-3 text-xs text-slate-300"><div className="mb-1 text-[11px] uppercase tracking-wide text-slate-400">Tender source material</div><div className="line-clamp-4 leading-5">{tender.source_material}</div></div> : null}<select className="input mt-3 w-full" value={tender.status} onClick={(event) => event.stopPropagation()} onChange={(event) => void onStatusChange(tender.id, event.target.value as TenderStatus)}>{statuses.map((option) => <option key={option} value={option}>{option}</option>)}</select></article>) : <div className="rounded-2xl border border-dashed border-white/10 p-4 text-xs text-slate-500">No tenders</div>}</div></div>) : <div className="card overflow-x-auto p-0"><table className="min-w-full divide-y divide-white/10 text-sm"><thead className="bg-white/5 text-left text-slate-300"><tr><th className="px-4 py-3">Tender</th><th className="px-4 py-3">Source</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Close</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-white/10">{filteredPipelineTenders.map((tender) => <tr key={tender.id} className="text-slate-200"><td className="px-4 py-3"><div className="font-medium text-white">{tender.title}</div><div className="text-xs text-slate-400">{tender.publisher}</div></td><td className="px-4 py-3">{tender.source_label}</td><td className="px-4 py-3">{tender.status}</td><td className="px-4 py-3">{formatDate(tender.end_date)}</td><td className="px-4 py-3"><div className="flex flex-wrap justify-end gap-2"><button type="button" className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 hover:bg-white/10" onClick={() => setSelectedTender(tender)}>View</button><button type="button" className="rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-3 py-2 text-emerald-100 hover:bg-emerald-400/15" onClick={() => void onReactivate(tender)}>Re-Activate</button><button type="button" className="rounded-lg border border-rose-400/20 bg-rose-400/10 px-3 py-2 text-rose-100 hover:bg-rose-400/15" onClick={() => void onDelete(tender)}>Delete</button></div></td></tr>)}{!filteredPipelineTenders.length ? <tr><td colSpan={5} className="px-4 py-6 text-center text-slate-400">No archived tenders matched your current filters.</td></tr> : null}</tbody></table></div>}
         </section>
       </div>
-
       <TenderDetailModal tender={selectedTender} open={!!selectedTender} onClose={() => setSelectedTender(null)} />
     </div>
   )
