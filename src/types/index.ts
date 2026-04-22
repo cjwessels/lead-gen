@@ -62,6 +62,12 @@ export interface OutreachPack {
   source: 'local' | 'ai'
 }
 
+export interface TenderContactDetails {
+  contact_person?: string
+  contact_email?: string
+  contact_phone?: string
+}
+
 export interface TenderSearchResult {
   source_id: string
   source_type: TenderSourceType
@@ -76,6 +82,10 @@ export interface TenderSearchResult {
   end_date?: string
   qualification_notes?: string
   source_url?: string
+  source_material?: string
+  contact_person?: string
+  contact_email?: string
+  contact_phone?: string
   score: number
   keywords: string[]
   focus_tags: string[]
@@ -106,6 +116,10 @@ export interface Tender {
   end_date?: string
   qualification_notes?: string
   source_url?: string
+  source_material?: string
+  contact_person?: string
+  contact_email?: string
+  contact_phone?: string
   score: number
   keywords: string[]
   focus_tags: string[]

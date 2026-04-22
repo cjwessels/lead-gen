@@ -44,6 +44,10 @@ interface TenderResult {
   end_date?: string
   qualification_notes?: string
   source_url?: string
+  source_material?: string
+  contact_person?: string
+  contact_email?: string
+  contact_phone?: string
   score: number
   keywords: string[]
   focus_tags: string[]
@@ -224,6 +228,7 @@ function extractPlatformCandidates(
     const location = extractLocation(text)
     const publisher = inferPublisher(text) || sourceLabel
     const qualification_notes = inferQualification(text)
+    const contact = extractContactDetails(text)
     const focus_tags = keywords.filter((keyword) => text.toLowerCase().includes(keyword)).slice(0, 6)
 
     results.push({
@@ -240,6 +245,10 @@ function extractPlatformCandidates(
       end_date: dates.end_date,
       qualification_notes,
       source_url: sourceUrl,
+      source_material: text.slice(0, 1200),
+      contact_person: contact.contact_person,
+      contact_email: contact.contact_email,
+      contact_phone: contact.contact_phone,
       score: Math.min(score + (sourceType === 'private_sector' ? 4 : 0), 100),
       keywords,
       focus_tags,
@@ -287,6 +296,7 @@ function toGovernmentTenderResult(row: any, keywords: string[]): TenderResult | 
 
   const location = extractLocation(combined)
   const qualification_notes = inferQualification(combined)
+  const contact = extractGovernmentContact(row, combined)
   const source_id = pickString(row?.ocid, row?.id, row?.releaseID, row?.releaseId) || slugify(`${title}-${publisher}-${end_date || ''}`)
   const source_url =
     pickString(
@@ -312,6 +322,10 @@ function toGovernmentTenderResult(row: any, keywords: string[]): TenderResult | 
     end_date,
     qualification_notes,
     source_url,
+    source_material: combined.slice(0, 1200),
+    contact_person: contact.contact_person,
+    contact_email: contact.contact_email,
+    contact_phone: contact.contact_phone,
     score,
     keywords,
     focus_tags,
@@ -395,6 +409,53 @@ function inferQualification(text: string) {
     ...extractPhrase(text, /(?:cidb|csd|tax clearance|briefing session|briefing meeting|sbd forms?|b-bbee|company registration)[\s\S]{0,220}/i),
   ]
   return matches[0] || ''
+}
+
+function extractContactDetails(text: string) {
+  const emailMatch = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)
+  const phoneMatch = text.match(/(?:\+27|0)(?:\s|[-()]|\d){8,16}\d/)
+  const personMatch = text.match(/(?:contact|enquiries?|attention|attn|for more information(?: contact)?)[\s:,-]{0,6}([A-Z][A-Za-z]+(?:\s+[A-Z][A-Za-z.'-]+){0,3})/i)
+
+  return {
+    contact_person: personMatch?.[1]?.trim(),
+    contact_email: sanitizeEmail(emailMatch?.[0]),
+    contact_phone: sanitizePhone(phoneMatch?.[0]),
+  }
+}
+
+function extractGovernmentContact(row: any, combined: string) {
+  const contactFromText = extractContactDetails(combined)
+  const contactPoint = row?.buyer?.contactPoint || row?.tender?.procuringEntity?.contactPoint || row?.contactPoint || {}
+  const parties = Array.isArray(row?.parties) ? row.parties : []
+  const partyContact = parties.find((party: any) => party?.contactPoint)?.contactPoint || {}
+
+  return {
+    contact_person: pickString(
+      contactFromText.contact_person,
+      contactPoint?.name,
+      partyContact?.name,
+    ),
+    contact_email: sanitizeEmail(pickString(
+      contactFromText.contact_email,
+      contactPoint?.email,
+      partyContact?.email,
+    )),
+    contact_phone: sanitizePhone(pickString(
+      contactFromText.contact_phone,
+      contactPoint?.telephone,
+      partyContact?.telephone,
+    )),
+  }
+}
+
+function sanitizeEmail(value?: string) {
+  if (!value) return undefined
+  return value.replace(/[.,;:]+$/, '').trim()
+}
+
+function sanitizePhone(value?: string) {
+  if (!value) return undefined
+  return value.replace(/\s+/g, ' ').replace(/[.,;:]+$/, '').trim()
 }
 
 function extractPhrase(text: string, pattern: RegExp) {

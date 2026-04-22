@@ -441,6 +441,20 @@ export function TendersPage() {
                         {tender.is_national ? 'National / Countrywide' : tender.province || 'Province not extracted'}
                       </div>
                       <div className="mt-1 text-xs text-slate-300">Close: {formatDate(tender.end_date)}</div>
+                      {tender.contact_person || tender.contact_email || tender.contact_phone ? (
+                        <div className="mt-3 rounded-2xl border border-white/10 bg-black/10 p-3 text-xs text-slate-300">
+                          <div className="mb-1 text-[11px] uppercase tracking-wide text-slate-400">Contact details</div>
+                          {tender.contact_person ? <div>Person: {tender.contact_person}</div> : null}
+                          {tender.contact_email ? <div>Email: {tender.contact_email}</div> : null}
+                          {tender.contact_phone ? <div>Phone: {tender.contact_phone}</div> : null}
+                        </div>
+                      ) : null}
+                      {tender.source_material ? (
+                        <div className="mt-3 rounded-2xl border border-white/10 bg-black/10 p-3 text-xs text-slate-300">
+                          <div className="mb-1 text-[11px] uppercase tracking-wide text-slate-400">Tender source material</div>
+                          <div className="line-clamp-4 leading-5">{tender.source_material}</div>
+                        </div>
+                      ) : null}
                       <select
                         className="input mt-3 w-full"
                         value={tender.status}

@@ -73,9 +73,28 @@ export function TenderDetailModal({
                   <div className="text-xs uppercase tracking-wide text-slate-400">Closing date</div>
                   <div className="mt-1">{formatDate(tender.end_date)}</div>
                 </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-400">Contact person</div>
+                  <div className="mt-1">{tender.contact_person || 'Not extracted'}</div>
+                </div>
+                <div>
+                  <div className="text-xs uppercase tracking-wide text-slate-400">Contact phone</div>
+                  <div className="mt-1">{tender.contact_phone || 'Not extracted'}</div>
+                </div>
+                <div className="md:col-span-2">
+                  <div className="text-xs uppercase tracking-wide text-slate-400">Contact email</div>
+                  <div className="mt-1 break-all">{tender.contact_email || 'Not extracted'}</div>
+                </div>
                 <div className="md:col-span-2">
                   <div className="text-xs uppercase tracking-wide text-slate-400">Source URL</div>
-                  <div className="mt-1 break-all">{tender.source_url || 'No source URL returned'}</div>
+                  <div className="mt-1 break-all">{tender.source_url && (<a
+                    href={tender.source_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="break-all text-blue-400 underline hover:text-blue-300"
+                  >
+                    {tender.source_url}
+                  </a>) || 'No source URL returned'}</div>
                 </div>
               </div>
             </div>
@@ -87,6 +106,11 @@ export function TenderDetailModal({
               <div className="mt-4 text-xs uppercase tracking-wide text-slate-400">Qualification / notes</div>
               <div className="mt-2 text-sm leading-6 text-slate-300">
                 {tender.qualification_notes || 'Qualification details are not explicit in the record.'}
+              </div>
+
+              <div className="mt-4 text-xs uppercase tracking-wide text-slate-400">Tender source material</div>
+              <div className="mt-2 text-sm leading-6 text-slate-300">
+                {tender.source_material || 'No raw source material was stored for this tender.'}
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">

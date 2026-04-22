@@ -18,6 +18,10 @@ function mapRowToTender(row: any): Tender {
     end_date: row.end_date ?? undefined,
     qualification_notes: row.qualification_notes ?? undefined,
     source_url: row.source_url ?? undefined,
+    source_material: row.source_material ?? undefined,
+    contact_person: row.contact_person ?? undefined,
+    contact_email: row.contact_email ?? undefined,
+    contact_phone: row.contact_phone ?? undefined,
     score: row.score ?? 0,
     keywords: row.keywords ?? [],
     focus_tags: row.focus_tags ?? [],
@@ -80,7 +84,36 @@ export async function saveTender(tender: TenderSearchResult): Promise<Tender> {
   if (lookupError) throw lookupError
 
   if (existingRows && existingRows.length > 0) {
-    return mapRowToTender(existingRows[0])
+    const existing = existingRows[0]
+    const { data: updated, error: updateError } = await supabase
+      .from('tenders')
+      .update({
+        source_type: tender.source_type,
+        source_label: tender.source_label,
+        title: tender.title,
+        summary: tender.summary,
+        publisher: tender.publisher,
+        province: tender.province || null,
+        location_text: tender.location_text || null,
+        is_national: tender.is_national || false,
+        start_date: tender.start_date || null,
+        end_date: tender.end_date || null,
+        qualification_notes: tender.qualification_notes || null,
+        source_url: tender.source_url || null,
+        source_material: tender.source_material || null,
+        contact_person: tender.contact_person || null,
+        contact_email: tender.contact_email || null,
+        contact_phone: tender.contact_phone || null,
+        score: tender.score,
+        keywords: tender.keywords,
+        focus_tags: tender.focus_tags,
+      })
+      .eq('id', existing.id)
+      .select()
+      .single()
+
+    if (updateError) throw updateError
+    return mapRowToTender(updated)
   }
 
   const { data, error } = await supabase
@@ -100,6 +133,10 @@ export async function saveTender(tender: TenderSearchResult): Promise<Tender> {
       end_date: tender.end_date || null,
       qualification_notes: tender.qualification_notes || null,
       source_url: tender.source_url || null,
+      source_material: tender.source_material || null,
+      contact_person: tender.contact_person || null,
+      contact_email: tender.contact_email || null,
+      contact_phone: tender.contact_phone || null,
       score: tender.score,
       keywords: tender.keywords,
       focus_tags: tender.focus_tags,
