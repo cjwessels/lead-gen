@@ -135,3 +135,33 @@ export interface TenderNote {
   note_text: string
   created_at: string
 }
+
+
+export interface SubscriptionRecord {
+  id: string
+  user_id: string
+  plan: Exclude<PlanCode, 'free'>
+  status: 'pending' | 'active' | 'cancelled' | 'past_due' | 'on_hold'
+  payfast_payment_id?: string | null
+  payfast_subscription_token?: string | null
+  payfast_pf_payment_id?: string | null
+  payfast_status?: string | null
+  amount?: number | null
+  recurring_amount?: number | null
+  billing_frequency?: number | null
+  billing_cycles?: number | null
+  is_recurring?: boolean
+  started_at?: string | null
+  paused_at?: string | null
+  cancelled_at?: string | null
+  last_payment_at?: string | null
+  last_payment_status?: string | null
+  failed_payment_count?: number
+  created_at?: string
+}
+
+export interface SubscriptionPortalResponse {
+  subscription: SubscriptionRecord | null
+  portal: string | null
+  result?: unknown
+}
